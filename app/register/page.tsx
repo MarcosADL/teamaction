@@ -1,13 +1,8 @@
-// app/register/page.tsx
-import { Suspense } from "react";
+// app/auth/register/page.tsx
 import RegisterClient from "./register-client";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // evita PPR aqui
 
-export default function RegisterPage() {
-  return (
-    <Suspense fallback={<div>Carregar…</div>}>
-      <RegisterClient />
-    </Suspense>
-  );
+export default function Page() {
+  return <RegisterClient />;
 }
