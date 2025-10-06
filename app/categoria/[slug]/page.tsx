@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -38,9 +38,7 @@ async function getPostsByCategory(slug: string) {
   return data ?? []
 }
 
-export async function generateMetadata({
-  params,
-}: {
+: {
   params: Params
 }) {
   const { slug } = await params
@@ -70,7 +68,7 @@ export default async function CategoryPage({
       </h1>
 
       {posts.length === 0 && (
-        <p className="text-sm text-gray-500">Ainda não há artigos nesta categoria.</p>
+        <p className="text-sm text-gray-500">Ainda nÃ£o hÃ¡ artigos nesta categoria.</p>
       )}
 
       <ul className="space-y-6">
@@ -86,7 +84,7 @@ export default async function CategoryPage({
               {p.published_at
                 ? new Date(p.published_at).toLocaleDateString('pt-PT')
                 : 'Sem data'}
-              {' · '}
+              {' Â· '}
               {p.categories?.name ?? category.name}
             </p>
 
@@ -112,3 +110,4 @@ export default async function CategoryPage({
     </main>
   )
 }
+
