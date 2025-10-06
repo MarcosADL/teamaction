@@ -17,14 +17,14 @@ async function getCategory(slug: string) {
 async function getPostsByCategory(slug: string) {
   const { data, error } = await supabase
     .from("posts")
-    .select(
+    .select(`
       id,
       title,
       slug,
       excerpt,
       published_at,
       categories:categories!inner(name,slug)
-    )
+    `)
     .eq("status", "published")
     .eq("categories.slug", slug)
     .order("published_at", { ascending: false });
@@ -52,7 +52,7 @@ export default async function CategoryPage({ params }: { params: Params }) {
         {posts.map((p: any) => (
           <li key={p.id} className="rounded-lg border p-5">
             <h2 className="text-xl font-medium">
-              <Link href={/blog/} className="underline">{p.title}</Link>
+              <Link href={`/blog/${p.slug}`} className="underline">{p.title}</Link>
             </h2>
             <p className="mt-1 text-xs text-gray-500">
               {p.published_at ? new Date(p.published_at).toLocaleDateString("pt-PT") : "Sem data"}
@@ -61,7 +61,7 @@ export default async function CategoryPage({ params }: { params: Params }) {
             </p>
             {p.excerpt && <p className="mt-3 text-sm text-gray-700">{p.excerpt}</p>}
             <div className="mt-4">
-              <Link href={/blog/} className="inline-block rounded border px-3 py-1 text-sm underline">
+              <Link href={`/blog/${p.slug}`} className="inline-block rounded border px-3 py-1 text-sm underline">
                 Ler artigo
               </Link>
             </div>
