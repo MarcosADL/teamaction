@@ -1,0 +1,18 @@
+[
+  {
+    "id": "971f048d-5b53-484b-a232-5ea16be62717",
+    "name": "Marcos António  Lancha",
+    "email": "marcosdlancha@gmail.com",
+    "passwordHash": "$2b$10$esf8jVW.J1YXlIkmoW12POVpZi71QmomvIhLEl5UlRwe9/ADsvVWK",
+    "role": "admin",
+    "createdAt": "2025-10-02T20:14:36.541Z"
+  },
+  {
+    "id": "24c5f8fa-fe11-4caa-a5da-ca75d1e3d481",
+    "name": "Admin",
+    "email": "admin@teamaction.pt",
+    "passwordHash": "$2b$10$NAwxusoejkwPW1C.HLxPo.ZNT6WHqtNOFCMF2OuuMAabZrxfS0sI.",
+    "role": "admin",
+    "createdAt": "2025-10-02T20:23:44.395Z"
+  }
+]

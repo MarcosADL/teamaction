@@ -1,0 +1,15 @@
+[
+  {
+    "type": "role_change",
+    "by": {
+      "id": "24c5f8fa-fe11-4caa-a5da-ca75d1e3d481",
+      "email": "admin@teamaction.pt"
+    },
+    "user": {
+      "id": "971f048d-5b53-484b-a232-5ea16be62717",
+      "email": "marcosdlancha@gmail.com"
+    },
+    "newRole": "admin",
+    "ts": "2025-10-02T21:56:34.929Z"
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "cd79d0f9-c650-4578-908c-547f0a698969",
+    "slug": "4x4",
+    "title": "4x4",
+    "excerpt": "treino",
+    "content": "4x4",
+    "date": "2025-10-02",
+    "categories": [
+      "4x4",
+      "treino"
+    ],
+    "tags": [
+      "treino",
+      "4x4"
+    ],
+    "coverImage": "https://www.youtube.com/watch?v=zHqgnJ21AKE",
+    "status": "publicado",
+    "videoUrl": "https://www.youtube.com/watch?v=ioB21xCngGk"
+  },
+  {
+    "id": "seed-1",
+    "slug": "bem-vindo-ao-blog-teamaction",
+    "title": "Bem-vindo ao Blog TeamAction",
+    "excerpt": "Arranque do nosso blog com tática, treino e gestão.",
+    "content": "Conteúdo inicial.",
+    "date": "2025-09-01",
+    "categories": [
+      "Notícias"
+    ],
+    "tags": [
+      "equipa",
+      "blog"
+    ],
+    "coverImage": "/og/post-og.svg",
+    "status": "publicado"
+  }
+]
