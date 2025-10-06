@@ -4,9 +4,10 @@ export async function generateMetadata(
   { params }: { params: { slug: string } }
 ): Promise<Metadata> {
   const { slug } = params;
-  const title = `Categoria: ${slug} — TeamAction`;
-  const description = `Artigos da categoria ${slug}`;
-  return { title, description };
+  return {
+    title: `Categoria: ${slug} — TeamAction`,
+    description: `Artigos da categoria ${slug}`,
+  };
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {

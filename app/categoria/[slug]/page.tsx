@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type RouteParams = { slug: string };
+type Category = { name: string; slug: string };
 
 type Post = {
   id: string | number;
@@ -12,8 +13,6 @@ type Post = {
   published_at: string | null;
   categories?: { name: string; slug: string }[] | null;
 };
-
-type Category = { name: string; slug: string };
 
 async function getCategory(slug: string): Promise<Category | null> {
   const { data, error } = await supabase
@@ -47,6 +46,7 @@ export default async function CategoryPage({ params }: { params: RouteParams }) 
   const { slug } = params;
   const category = await getCategory(slug);
   if (!category) notFound();
+
   const posts = await getPostsByCategory(slug);
 
   return (
@@ -76,7 +76,10 @@ export default async function CategoryPage({ params }: { params: RouteParams }) 
             </p>
             {p.excerpt && <p className="mt-3 text-sm text-gray-700">{p.excerpt}</p>}
             <div className="mt-4">
-              <Link href={`/blog/${p.slug}`} className="inline-block rounded border px-3 py-1 text-sm underline">
+              <Link
+                href={`/blog/${p.slug}`}
+                className="inline-block rounded border px-3 py-1 text-sm underline"
+              >
                 Ler artigo
               </Link>
             </div>
