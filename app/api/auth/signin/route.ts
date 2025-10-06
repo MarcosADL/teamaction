@@ -1,82 +1,44 @@
-// app/api/auth/signin/route.ts
-import { NextResponse } from "next/server";
-import { readFile } from "node:fs/promises";
-import * as jose from "jose";
-import bcrypt from "bcryptjs";
+// app/api/auth/register/route.ts
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-type User = {
-  id: string | number;
-  name: string;
-  email: string;
-  // pode existir um destes dois campos dependendo de como gravaste no register
-  password?: string;
-  password_hash?: string;
-};
+export const runtime = 'nodejs'; // evitar edge p/ libs nativas
 
-function sameEmail(a: string, b: string) {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!; // ANON para signUp
+  if (!url || !key) throw new Error('Supabase não configurado');
+  return createClient(url, key);
 }
 
 export async function POST(req: Request) {
   try {
-    const { email, password } = (await req.json().catch(() => ({}))) as {
-      email?: string;
-      password?: string;
-    };
-    if (!email || !password) {
-      return NextResponse.json({ ok: false, error: "Credenciais em falta" }, { status: 400 });
+    const { name, email, password } = await req.json();
+
+    if (!name || !email || !password || password.length < 6) {
+      return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
     }
 
-    // 1) ler "base de dados" local
-    const raw = await readFile(process.cwd() + "/users.db.json", "utf8").catch(() => "[]");
-    const users: User[] = JSON.parse(raw || "[]");
+    const supabase = getSupabase();
 
-    // 2) procurar utilizador por email
-    const user = users.find((u) => sameEmail(u.email, email));
-    if (!user) {
-      return NextResponse.json({ ok: false, error: "Credenciais inválidas" }, { status: 401 });
-    }
-
-    // 3) validar password (hash ou texto simples)
-    let valid = false;
-    if (user.password_hash) {
-      valid = await bcrypt.compare(password, user.password_hash);
-    } else if (user.password) {
-      valid = user.password === password;
-    }
-
-    if (!valid) {
-      return NextResponse.json({ ok: false, error: "Credenciais inválidas" }, { status: 401 });
-    }
-
-    // 4) assinar cookie de sessão (JWT)
-    const secret = new TextEncoder().encode(process.env.APP_SECRET || process.env.NEXTAUTH_SECRET || "dev-secret");
-    const token = await new jose.SignJWT({
-      sub: String(user.id),
-      email: user.email,
-      name: user.name,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("30d")
-      .sign(secret);
-
-    const res = NextResponse.json({ ok: true });
-
-    // cookie httpOnly
-    res.cookies.set("app_session", token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: true,
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
+    // cria utilizador com e-mail de confirmação
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/auth/callback`,
+      },
     });
 
-    return res;
-  } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Erro no login" },
-      { status: 500 }
-    );
+    if (error) {
+      const msg = error.message?.toLowerCase().includes('already') ? 'Email já registado.' : error.message;
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+
+    return NextResponse.json({ ok: true, userId: data.user?.id ?? null });
+  } catch (err: any) {
+    const message = err?.message || 'Erro inesperado no registo.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
