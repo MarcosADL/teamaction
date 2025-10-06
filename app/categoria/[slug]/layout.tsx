@@ -1,5 +1,13 @@
-﻿export async function generateMetadata({ params }: { params: { slug: string } }) {
+﻿import type { Metadata } from "next";
+export async function generateMetadata(
+  { params }: { params: { slug: string } }
+): Promise<Metadata> {
   const { slug } = params;
-  return { title: Categoria:  — TeamAction, description: Artigos da categoria  };
+  const title = `Categoria: ${slug} — TeamAction`;
+  const description = `Artigos da categoria ${slug}`;
+  return { title, description };
 }
-export default function Layout({ children }: { children: React.ReactNode }) { return <>{children}</>; }
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
+}
