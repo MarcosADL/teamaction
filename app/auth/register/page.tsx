@@ -1,3 +1,17 @@
+// app/auth/register/page.tsx
+import { Suspense } from "react";
+
+export const dynamic = "force-dynamic"; // evita PPR aqui
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div>Carregar…</div>}>
+      <RegisterClient />
+    </Suspense>
+  );
+}
+
+// ---------- componente cliente ----------
 "use client";
 
 import { useState } from "react";
@@ -7,7 +21,7 @@ function isEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 }
 
-export default function RegisterPage() {
+function RegisterClient() {
   const router = useRouter();
   const sp = useSearchParams();
   const next = sp.get("next") || "/";
@@ -47,7 +61,6 @@ export default function RegisterPage() {
         throw new Error(data?.error || `Falha no registo (${res.status})`);
       }
 
-      // sessão iniciada automaticamente pelo endpoint; redireciona
       router.replace(next || "/");
       router.refresh();
     } catch (e: any) {
@@ -129,3 +142,5 @@ export default function RegisterPage() {
     </main>
   );
 }
+
+export { RegisterClient };
