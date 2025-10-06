@@ -1,4 +1,3 @@
-// app/api/auth/register/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -9,23 +8,26 @@ export async function POST(req: Request) {
   try {
     const { name, email, password } = await req.json();
 
-    if (!name || !email || !password) {
-      return NextResponse.json({ error: "Campos em falta." }, { status: 400 });
-    }
-
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-      console.error("Supabase envs em falta");
+    const missing = [
+      !SUPABASE_URL && "NEXT_PUBLIC_SUPABASE_URL",
+      !SERVICE_ROLE_KEY && "SUPABASE_SERVICE_ROLE_KEY",
+    ].filter(Boolean);
+
+    if (missing.length) {
       return NextResponse.json(
-        { error: "Configuração do servidor em falta." },
+        { error: `Env(s) em falta: ${missing.join(", ")}` },
         { status: 500 }
       );
     }
 
-    // criar client só aqui (evita crash no build)
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    if (!name || !email || !password) {
+      return NextResponse.json({ error: "Campos em falta." }, { status: 400 });
+    }
+
+    const supabase = createClient(SUPABASE_URL!, SERVICE_ROLE_KEY!);
 
     const { data, error } = await supabase.auth.admin.createUser({
       email,
@@ -38,7 +40,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, user: data.user }, { status: 201 });
   } catch (e) {
-    console.error(e);
     return NextResponse.json({ error: "Erro no servidor." }, { status: 500 });
   }
 }
