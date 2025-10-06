@@ -1,34 +1,42 @@
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "jsx": "preserve",
-    "strict": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["*"]
-    },
-    "esModuleInterop": true,
-    "allowJs": true,
-    "skipLibCheck": true,
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "noEmit": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": ["node_modules"]
+﻿{
+    "compilerOptions":  {
+                            "target":  "ES2022",
+                            "lib":  [
+                                        "dom",
+                                        "dom.iterable",
+                                        "esnext"
+                                    ],
+                            "module":  "ESNext",
+                            "moduleResolution":  "Bundler",
+                            "jsx":  "preserve",
+                            "strict":  true,
+                            "baseUrl":  ".",
+                            "paths":  {
+                                          "@/*":  [
+                                                      "*"
+                                                  ]
+                                      },
+                            "esModuleInterop":  true,
+                            "allowJs":  true,
+                            "skipLibCheck":  true,
+                            "incremental":  true,
+                            "plugins":  [
+                                            {
+                                                "name":  "next"
+                                            }
+                                        ],
+                            "noEmit":  true,
+                            "resolveJsonModule":  true,
+                            "isolatedModules":  true,
+                            "forceConsistentCasingInFileNames":  true
+                        },
+    "include":  [
+                    "next-env.d.ts",
+                    "**/*.ts",
+                    "**/*.tsx",
+                    ".next/types/**/*.ts"
+                ],
+    "exclude":  [
+                    "node_modules"
+                ]
 }
