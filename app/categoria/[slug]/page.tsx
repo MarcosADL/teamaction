@@ -1,6 +1,9 @@
-﻿import Link from "next/link";
+﻿// app/categoria/[slug]/page.tsx
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
+
+export const dynamic = "force-dynamic"; // evita build-time data fetching
 
 type RouteParams = { slug: string };
 type Category = { name: string; slug: string };
@@ -15,35 +18,42 @@ type Post = {
 };
 
 async function getCategory(slug: string): Promise<Category | null> {
+  const supabase = getSupabase(); // cria o cliente no runtime
   const { data, error } = await supabase
     .from("categories")
     .select("name, slug")
     .eq("slug", slug)
     .maybeSingle();
+
   if (error) throw error;
   return data;
 }
 
 async function getPostsByCategory(slug: string): Promise<Post[]> {
+  const supabase = getSupabase(); // cria o cliente no runtime
   const { data, error } = await supabase
     .from("posts")
-    .select(`
+    .select(
+      `
       id,
       title,
       slug,
       excerpt,
       published_at,
       categories:categories!inner(name,slug)
-    `)
+    `
+    )
     .eq("status", "published")
     .eq("categories.slug", slug)
     .order("published_at", { ascending: false });
+
   if (error) throw error;
   return (data as Post[]) ?? [];
 }
 
 export default async function CategoryPage({ params }: { params: RouteParams }) {
   const { slug } = params;
+
   const category = await getCategory(slug);
   if (!category) notFound();
 

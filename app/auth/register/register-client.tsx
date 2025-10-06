@@ -2,14 +2,14 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { getSupabase } from "@/lib/supabase";
 
 function isEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 }
 
 export default function RegisterClient() {
-  const router = useRouter();
   const sp = useSearchParams();
   const next = sp.get("next") || "/";
 
@@ -18,43 +18,43 @@ export default function RegisterClient() {
   const [password, setPassword] = useState("");
 
   const [err, setErr] = useState("");
+  const [ok, setOk] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const emailInvalid = email.length > 0 && !isEmail(email);
   const pwInvalid = password.length > 0 && password.length < 6;
   const disabled =
-    loading ||
-    !name.trim() ||
-    !email.trim() ||
-    !password ||
-    emailInvalid ||
-    pwInvalid;
+    loading || !name.trim() || !email.trim() || !password || emailInvalid || pwInvalid;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (disabled) return;
     setErr("");
+    setOk(false);
     setLoading(true);
 
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
+    // ✅ cria o cliente Supabase
+    const supabase = getSupabase();
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || `Falha no registo (${res.status})`);
-      }
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name }, // guarda o nome no user_metadata
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+          next
+        )}`,
+      },
+    });
 
-      router.replace(next || "/");
-      router.refresh();
-    } catch (e: any) {
-      setErr(e?.message || "Erro inesperado");
-    } finally {
-      setLoading(false);
+    setLoading(false);
+
+    if (error) {
+      setErr(error.message);
+      return;
     }
+
+    setOk(true); // pedido de verificação enviado
   }
 
   return (
@@ -84,9 +84,7 @@ export default function RegisterClient() {
             autoComplete="email"
             aria-invalid={emailInvalid || undefined}
           />
-          {emailInvalid && (
-            <p className="mt-1 text-xs text-red-600">Email inválido.</p>
-          )}
+          {emailInvalid && <p className="mt-1 text-xs text-red-600">Email inválido.</p>}
         </div>
 
         <div>
@@ -101,12 +99,15 @@ export default function RegisterClient() {
             autoComplete="new-password"
             aria-invalid={pwInvalid || undefined}
           />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Mínimo 6 caracteres.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Mínimo 6 caracteres.</p>
         </div>
 
         {err && <p className="text-sm text-red-600">{err}</p>}
+        {ok && (
+          <p className="text-sm text-green-700">
+            Verifica o teu e-mail para concluir o registo. Depois serás redirecionado/a.
+          </p>
+        )}
 
         <button
           type="submit"
