@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import LogoutButton from "@/components/LogoutButton"; // <-- novo
-
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 function firstName(name?: string) {
   if (!name) return "";
   const [f] = name.split(" ");
