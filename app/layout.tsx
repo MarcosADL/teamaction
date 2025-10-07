@@ -2,8 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 import SiteHeader from "@/components/site-header";
 
+// 🔥 força render dinâmico (sem cache)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://teamaction.example.com"),
+  metadataBase: new URL("https://teamaction.pt"), // ✅ podes ajustar p/ o teu domínio real
   title: {
     default: "TeamAction",
     template: "%s — TeamAction",
