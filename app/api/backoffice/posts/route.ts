@@ -1,45 +1,90 @@
-import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
-import { getAllPosts, createPost } from "@/lib/posts";
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
+import { jwtVerify } from 'jose';
 
-export async function GET() {
-  const posts = await getAllPosts();
-  return NextResponse.json({ items: posts });
+const COOKIE = 'session';
+const SECRET = new TextEncoder().encode(
+  process.env.APP_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret'
+);
+
+function supabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!  // <- chave server
+  );
 }
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
+    // 1) Autorizar: só admins (mesma regra do middleware)
+    const token = (await cookies()).get(COOKIE)?.value;
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { payload } = await jwtVerify(token, SECRET);
+    if (payload.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // 2) Dados do POST
     const body = await req.json();
+    const {
+      title,
+      summary,
+      content,
+      published_at,   // 'YYYY-MM-DD'
+      cover_url,
+      video_url,
+      categories,     // "treino, futebol" -> Vamos tratar abaixo se vier string
+      tags,           // "tag1, tag2"
+      status,         // 'draft' | 'published'
+    } = body;
 
-    const post = await createPost({
-      title: String(body.title ?? ""),
-      excerpt: body.excerpt ? String(body.excerpt) : undefined,
-      content: String(body.content ?? ""),
-      date: body.date ? String(body.date) : undefined,
-      categories: Array.isArray(body.categories) ? body.categories : [],
-      tags: Array.isArray(body.tags) ? body.tags : [],
-      coverImage: body.coverImage ? String(body.coverImage) : undefined,
-      videoUrl:
-        body.videoUrl
-          ? String(body.videoUrl)
-          : body.youtubeUrl
-          ? String(body.youtubeUrl)
-          : undefined,
-      status:
-        String(body.status ?? "publicado") === "rascunho"
-          ? "rascunho"
-          : "publicado",
-    });
+    if (!title) {
+      return NextResponse.json({ error: 'Título é obrigatório.' }, { status: 400 });
+    }
 
-    // força atualização das páginas públicas
-    revalidatePath("/blog");
-    revalidatePath(`/blog/${post.slug}`);
+    const categoriesArr =
+      Array.isArray(categories)
+        ? categories
+        : (typeof categories === 'string' && categories.trim() !== '')
+          ? categories.split(',').map((s: string) => s.trim())
+          : [];
 
-    return NextResponse.json({ ok: true, post }, { status: 201 });
+    const tagsArr =
+      Array.isArray(tags)
+        ? tags
+        : (typeof tags === 'string' && tags.trim() !== '')
+          ? tags.split(',').map((s: string) => s.trim())
+          : [];
+
+    // 3) Inserir na BD (service role ignora RLS)
+    const supabase = supabaseAdmin();
+    const { data, error } = await supabase
+      .from('posts')
+      .insert([{
+        title,
+        summary,
+        content,
+        published_at: published_at ? new Date(published_at).toISOString().slice(0,10) : null,
+        cover_url,
+        video_url,
+        categories: categoriesArr,
+        tags: tagsArr,
+        status: status === 'published' ? 'published' : 'draft',
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ ok: true, post: data }, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Falha ao criar" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Erro no servidor' }, { status: 500 });
   }
 }

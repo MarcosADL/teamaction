@@ -1,3 +1,4 @@
+// app/backoffice/posts/new/page.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -50,30 +51,36 @@ export default function NewPostPage() {
     setLoading(true);
 
     try {
+      // mapear nomes para o que a API espera
+      const payload = {
+        title: title.trim(),
+        summary: excerpt.trim() || undefined,      // <- summary
+        content: content.trim(),
+        published_at: date || undefined,           // <- published_at (YYYY-MM-DD)
+        cover_url: coverImage || undefined,        // <- cover_url
+        video_url: videoUrl || undefined,          // <- video_url
+        categories,                                // string "a, b" (a API aceita string/array)
+        tags,
+        status: status === "publicado" ? "published" : "draft", // <- 'published' | 'draft'
+      };
+
       const res = await fetch("/api/backoffice/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          excerpt: excerpt.trim() || undefined,
-          content: content.trim(),
-          date: date || undefined,
-          categories: categories.split(",").map(s => s.trim()).filter(Boolean),
-          tags: tags.split(",").map(s => s.trim()).filter(Boolean),
-          coverImage: coverImage || undefined,
-          videoUrl: videoUrl || undefined,
-          status,
-        }),
+        credentials: "include", // ENVIA o cookie 'session' (admin)
+        body: JSON.stringify(payload),
       });
 
+      const text = await res.text().catch(() => "");
+      let data: any = {};
+      try { data = text ? JSON.parse(text) : {}; } catch {}
+
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        let data: any = {};
-        try { data = text ? JSON.parse(text) : {}; } catch {}
         throw new Error(data?.error || `Falhou a criação (${res.status})`);
       }
 
-      router.replace("/backoffice");
+      // ok
+      router.replace("/backoffice/posts"); // ou "/backoffice"
       router.refresh();
     } catch (e: any) {
       setErr(e?.message || "Erro inesperado");
@@ -127,7 +134,7 @@ export default function NewPostPage() {
               className="w-full rounded-md border px-3 py-2"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              placeholder="2025-10-02"
+              placeholder="2025-10-10"
               aria-invalid={!!errors.date}
             />
             {errors.date && <p className="mt-1 text-xs text-red-600">{errors.date}</p>}
