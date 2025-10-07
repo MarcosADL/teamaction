@@ -1,4 +1,3 @@
-// app/login/page.tsx  (ou app/entrar/page.tsx)
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -13,12 +12,12 @@ export default function LoginPage() {
   const [nextPath, setNextPath] = useState('/backoffice');
   const router = useRouter();
 
-  // Lê ?next=... no cliente (sem useSearchParams)
+  // ler ?next=... sem useSearchParams
   useEffect(() => {
     try {
       const sp = new URLSearchParams(window.location.search);
       const n = sp.get('next');
-      if (n && typeof n === 'string') setNextPath(n);
+      if (n) setNextPath(n);
     } catch {}
   }, []);
 
@@ -26,27 +25,39 @@ export default function LoginPage() {
     e.preventDefault();
     setMsg('A autenticar…');
     setLoading(true);
+
     try {
-      // 1) Login no Supabase (browser)
-      const { error } = await supabaseBrowser().auth.signInWithPassword({
+      // 1) Login no Supabase
+      const { data, error } = await supabaseBrowser().auth.signInWithPassword({
         email: email.trim(),
         password: password.trim(),
       });
-      if (error) { setMsg('ERRO: ' + error.message); return; }
+      if (error) {
+        setMsg(`Supabase: ${error.message}`);
+        return;
+      }
 
       // 2) Criar cookie para o middleware
       const res = await fetch('/api/create-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ role: 'admin' }), // depois puxamos role real
+        body: JSON.stringify({ role: 'admin' }),
       });
-      if (!res.ok) { setMsg('Sessão criada no Supabase, mas falhou cookie local.'); return; }
+
+      if (!res.ok) {
+        // mostrar mensagem exata do servidor
+        let errText = '';
+        try { errText = await res.text(); } catch {}
+        setMsg(`Cookie falhou: HTTP ${res.status} ${errText || ''}`.trim());
+        return;
+      }
 
       setMsg('Ok, sessão iniciada!');
       router.replace(nextPath);
-    } catch {
-      setMsg('Erro inesperado no login.');
+    } catch (err: any) {
+      // mostra erro real em vez de "inesperado"
+      setMsg(`Erro: ${err?.message || String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -59,23 +70,23 @@ export default function LoginPage() {
         <input
           className="border px-3 py-2 w-full"
           placeholder="Email"
+          autoComplete="email"
           value={email}
           onChange={e => setEmail(e.target.value)}
-          autoComplete="email"
         />
         <input
           className="border px-3 py-2 w-full"
           placeholder="Password"
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={e => setPassword(e.target.value)}
-          autoComplete="current-password"
         />
         <button disabled={loading} className="border px-4 py-2">
           {loading ? 'A entrar…' : 'Entrar'}
         </button>
       </form>
-      {msg && <p className="text-sm">{msg}</p>}
+      {msg && <p className="text-sm text-red-600">{msg}</p>}
     </main>
   );
 }
