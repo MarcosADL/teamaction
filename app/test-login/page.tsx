@@ -10,7 +10,9 @@ export default function TestLogin() {
   const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  function push(m: string) { setLog((l) => [...l, m]); }
+  function push(m: string) {
+    setLog((l) => [...l, m]);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,7 +22,7 @@ export default function TestLogin() {
       push(`ENV URL ok? ${!!URL}`);
       push(`ENV ANON ok? ${!!ANON}`);
 
-      // 1) Chamada direta ao endpoint do Supabase (sem SDK)
+      // 1) Login direto no Supabase (sem SDK)
       const url = `${URL}/auth/v1/token?grant_type=password`;
       push(`POST ${url}`);
 
@@ -30,7 +32,10 @@ export default function TestLogin() {
           apikey: ANON,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password.trim(),
+        }),
       });
 
       push(`Supabase status: ${authRes.status}`);
@@ -39,16 +44,15 @@ export default function TestLogin() {
 
       if (!authRes.ok) return;
 
-      // 2) Criar cookie local
-      push('POST /api/session');
-      const sess = await fetch('/api/session', {
+      // 2) Criar cookie de sessão (para o middleware)
+      push('POST /api/create-session');
+      const sess = await fetch('/api/create-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        credentials: 'include',            // <- IMPORTANTE para Set-Cookie
         body: JSON.stringify({ role: 'admin' }),
       });
       push(`session status: ${sess.status}`);
-
     } catch (err: any) {
       push('ERRO: ' + (err?.message || String(err)));
     }
@@ -58,10 +62,19 @@ export default function TestLogin() {
     <main className="max-w-md mx-auto py-8 space-y-4">
       <h1 className="text-2xl font-bold">Test Login</h1>
       <form onSubmit={onSubmit} className="space-y-2">
-        <input className="border px-3 py-2 w-full" placeholder="email"
-               value={email} onChange={(e)=>setEmail(e.target.value)} />
-        <input className="border px-3 py-2 w-full" placeholder="password" type="password"
-               value={password} onChange={(e)=>setPassword(e.target.value)} />
+        <input
+          className="border px-3 py-2 w-full"
+          placeholder="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <input
+          className="border px-3 py-2 w-full"
+          placeholder="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
         <button className="border px-4 py-2">Testar</button>
       </form>
 

@@ -15,6 +15,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const { role = "admin" } = await req.json().catch(() => ({}));
+
   const jwt = await new SignJWT({ role })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -23,8 +24,11 @@ export async function POST(req: Request) {
 
   const res = NextResponse.json({ ok: true });
   res.cookies.set(COOKIE, jwt, {
-    httpOnly: true, secure: true, sameSite: "lax",
-    path: "/", maxAge: 60 * 60 * 24 * 7,
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
   });
   return res;
 }
