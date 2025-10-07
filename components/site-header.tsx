@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import LogoutButton from "@/components/LogoutButton"; // <-- novo
 
 function firstName(name?: string) {
   if (!name) return "";
@@ -8,29 +9,20 @@ function firstName(name?: string) {
 }
 
 export default async function SiteHeader() {
-  // getSession lê o cookie "session" e devolve {id,email,name,role} | null
   const session = await getSession();
 
   return (
     <header className="border-b">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <Link href="/" className="text-lg font-semibold">
-          TeamAction
-        </Link>
+        <Link href="/" className="text-lg font-semibold">TeamAction</Link>
 
         <nav className="flex items-center gap-4">
-          <Link href="/blog" className="hover:underline">
-            Blog
-          </Link>
+          <Link href="/blog" className="hover:underline">Blog</Link>
 
-          {/* Só admins vêm o Backoffice */}
           {session?.role === "admin" && (
-            <Link href="/backoffice" className="hover:underline">
-              Backoffice
-            </Link>
+            <Link href="/backoffice" className="hover:underline">Backoffice</Link>
           )}
 
-          {/* Área de sessão */}
           {session ? (
             <>
               <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
@@ -40,23 +32,13 @@ export default async function SiteHeader() {
                 Olá, {firstName(session.name) || "Admin"}
               </span>
 
-              {/* >>> AQUI está o “Sair” (GET para a rota que redireciona) */}
-              <a
-                href="/api/auth/signout"
-                className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted/40"
-              >
-                Sair
-              </a>
+              {/* antes: <a href="/api/auth/signout">Sair</a> */}
+              <LogoutButton />  {/* <-- usa o botão cliente */}
             </>
           ) : (
             <>
-              <Link href="/login" className="hover:underline">
-                Entrar
-              </Link>
-              <Link
-                href="/register"
-                className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted/40"
-              >
+              <Link href="/login" className="hover:underline">Entrar</Link>
+              <Link href="/register" className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted/40">
                 Registar
               </Link>
             </>
