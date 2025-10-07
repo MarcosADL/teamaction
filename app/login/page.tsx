@@ -1,7 +1,8 @@
+// app/login/page.tsx  (ou app/entrar/page.tsx)
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabaseBrowser } from '../../lib/supabase-browser';
+import { supabaseBrowser } from '../../lib/supabase-browser'; // ou '@/lib/supabase-browser'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -15,34 +16,31 @@ export default function LoginPage() {
     setMsg('A autenticar…');
     setLoading(true);
 
-    const { error } = await supabaseBrowser().auth.signInWithPassword({
-      email: email.trim(),
-      password: password.trim(),
-    });
+    try {
+      const { error } = await supabaseBrowser().auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim(),
+      });
+      if (error) { setMsg('ERRO: ' + error.message); return; }
 
-    if (error) {
+      // ⚠️ cookies do /api/session precisam de credentials: 'include'
+      const res = await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin' }),
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        setMsg('Sessão criada no Supabase, mas falhou criar cookie local.');
+        return;
+      }
+
+      setMsg('Ok, sessão iniciada!');
+      router.replace('/backoffice');
+    } finally {
       setLoading(false);
-      setMsg('ERRO: ' + error.message); // mostra o erro real do Supabase
-      return;
     }
-
-    // ✅ Criar cookie de sessão para o middleware deixar passar
-    const res = await fetch('/api/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // por agora, força admin; depois puxamos da metadata do user
-      body: JSON.stringify({ role: 'admin' }),
-    });
-
-    setLoading(false);
-
-    if (!res.ok) {
-      setMsg('Sessão criada no Supabase, mas falhou criar cookie local.');
-      return;
-    }
-
-    setMsg('Ok, sessão iniciada!');
-    router.push('/backoffice'); // agora passa no middleware
   }
 
   return (
