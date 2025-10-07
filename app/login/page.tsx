@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabaseBrowser } from '@/lib/supabase-browser';
+import { supabase } from '@/lib/supabase-browser'; // <-- instância, não função
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -12,7 +12,6 @@ export default function LoginPage() {
   const [nextPath, setNextPath] = useState('/backoffice');
   const router = useRouter();
 
-  // ler ?next=... sem useSearchParams
   useEffect(() => {
     try {
       const sp = new URLSearchParams(window.location.search);
@@ -27,8 +26,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 1) Login no Supabase
-      const { data, error } = await supabaseBrowser().auth.signInWithPassword({
+      // 1) Login no Supabase (instância)
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password.trim(),
       });
@@ -46,7 +45,6 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        // mostrar mensagem exata do servidor
         let errText = '';
         try { errText = await res.text(); } catch {}
         setMsg(`Cookie falhou: HTTP ${res.status} ${errText || ''}`.trim());
@@ -56,7 +54,6 @@ export default function LoginPage() {
       setMsg('Ok, sessão iniciada!');
       router.replace(nextPath);
     } catch (err: any) {
-      // mostra erro real em vez de "inesperado"
       setMsg(`Erro: ${err?.message || String(err)}`);
     } finally {
       setLoading(false);
