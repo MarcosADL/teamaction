@@ -1,16 +1,10 @@
 // app/api/posts/route.ts
-export const preferredRegion = 'fra1';
 import { NextResponse } from 'next/server';
-import { Pool } from 'pg';
-
+import { pool } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const pool = new Pool({
-  connectionString: process.env.SUPABASE_DB_URL,
-  ssl: { rejectUnauthorized: false },
-});
+export const preferredRegion = 'fra1'; // força rebuild e ajuda no Vercel EU
 
 function toSlug(s: string) {
   return (s || '')
@@ -20,33 +14,36 @@ function toSlug(s: string) {
 }
 
 export async function POST(req: Request) {
-  const client = await pool.connect();
+  let client;
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({} as any));
 
     const title = String(body.title || '').trim();
-    if (!title) return NextResponse.json({ ok: false, error: 'Título é obrigatório.' }, { status: 400 });
+    if (!title) {
+      return NextResponse.json({ ok: false, error: 'Título é obrigatório.' }, { status: 400 });
+    }
 
-    const slug        = (body.slug && String(body.slug).trim()) || toSlug(title);
-    const excerpt     = body.summary ?? body.excerpt ?? null;
-    const content     = body.content ?? null;
+    const slug      = (body.slug && String(body.slug).trim()) || toSlug(title);
+    const excerpt   = body.summary ?? body.excerpt ?? null;
+    const content   = body.content ?? null;
 
     // aceita tanto coverImage/cover_url como image_url
-    const image_url   = body.image_url ?? body.coverImage ?? body.cover_url ?? null;
-    const video_url   = body.video_url ?? body.videoUrl ?? null;
+    const image_url = body.image_url ?? body.coverImage ?? body.cover_url ?? null;
+    const video_url = body.video_url ?? body.videoUrl ?? null;
 
     const dateStr = String(body.date ?? '').trim();
     const date    = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : null;
 
     const toArray = (v: any) =>
-      Array.isArray(v) ? v :
-        String(v ?? '')
-          .split(',')
-          .map(s => s.trim())
-          .filter(Boolean);
+      Array.isArray(v)
+        ? v
+        : String(v ?? '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
 
-    const categories  = toArray(body.categories);
-    const tags        = toArray(body.tags);
+    const categories = toArray(body.categories);
+    const tags       = toArray(body.tags);
 
     const status = (() => {
       const x = String(body.status || '').toLowerCase();
@@ -54,6 +51,9 @@ export async function POST(req: Request) {
       if (x.startsWith('rascun')) return 'draft';
       return x === 'published' || x === 'draft' ? x : 'draft';
     })();
+
+    // ⬇️ o connect agora está dentro do try: se falhar, cai no catch com JSON visível
+    client = await pool.connect();
 
     const sql = `
       insert into public.posts
@@ -76,10 +76,17 @@ export async function POST(req: Request) {
     const params = [slug, title, excerpt, content, image_url, video_url, date, categories, tags, status];
     const { rows } = await client.query(sql, params);
 
-    return NextResponse.json({ ok: true, post: rows[0] });
+    return NextResponse.json({ ok: true, post: rows[0] }, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || 'Erro' }, { status: 500 });
+    const msg =
+      e?.message ||
+      e?.code ||
+      'Erro';
+    // dá sempre corpo no 500 para conseguirmos ver no browser/console
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   } finally {
-    client.release();
+    try {
+      client?.release();
+    } catch {}
   }
 }
