@@ -1,7 +1,8 @@
 // app/login/page.tsx  (ou app/entrar/page.tsx)
 'use client';
-import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 
 export default function LoginPage() {
@@ -9,15 +10,22 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [nextPath, setNextPath] = useState('/backoffice');
   const router = useRouter();
-  const sp = useSearchParams();
-  const next = sp.get('next') || '/backoffice';
+
+  // Lê ?next=... no cliente (sem useSearchParams)
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const n = sp.get('next');
+      if (n && typeof n === 'string') setNextPath(n);
+    } catch {}
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg('A autenticar…');
     setLoading(true);
-
     try {
       // 1) Login no Supabase (browser)
       const { error } = await supabaseBrowser().auth.signInWithPassword({
@@ -26,22 +34,18 @@ export default function LoginPage() {
       });
       if (error) { setMsg('ERRO: ' + error.message); return; }
 
-      // 2) Criar cookie de sessão para o middleware
+      // 2) Criar cookie para o middleware
       const res = await fetch('/api/create-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: 'admin' }), // depois podes puxar a role real dos metadados
-        credentials: 'include', // IMPORTANTE para o Set-Cookie funcionar
+        credentials: 'include',
+        body: JSON.stringify({ role: 'admin' }), // depois puxamos role real
       });
-
-      if (!res.ok) {
-        setMsg('Sessão criada no Supabase, mas falhou criar cookie local.');
-        return;
-      }
+      if (!res.ok) { setMsg('Sessão criada no Supabase, mas falhou cookie local.'); return; }
 
       setMsg('Ok, sessão iniciada!');
-      router.replace(next);
-    } catch (err) {
+      router.replace(nextPath);
+    } catch {
       setMsg('Erro inesperado no login.');
     } finally {
       setLoading(false);
