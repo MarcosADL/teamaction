@@ -10,9 +10,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt" suppressHydrationWarning>
-      <body className="min-h-dvh bg-background text-foreground antialiased">
+      <body className="bg-background text-foreground min-h-dvh flex flex-col">
         <Navbar />
-        <main className="mx-auto max-w-6xl p-6">{children}</main>
+        <main className="flex-1">{children}</main>
+        <footer className="w-full border-t border-border bg-card text-sm text-muted-foreground text-center py-4">
+          © {new Date().getFullYear()} TeamAction. Todos os direitos reservados.
+        </footer>
       </body>
     </html>
   );

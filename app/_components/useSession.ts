@@ -11,15 +11,13 @@ export function useSession() {
     let ignore = false;
 
     async function load() {
-      setLoading(true);
       const { data } = await supabase.auth.getSession();
       if (!ignore) setUser(data.session?.user ?? null);
       setLoading(false);
     }
-
     load();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
       if (!ignore) setUser(session?.user ?? null);
     });
 

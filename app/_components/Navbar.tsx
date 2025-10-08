@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useSession } from "./useSession";
 import { supabase } from "@/lib/supabase-browser";
+import { useSession } from "./useSession";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -16,58 +16,49 @@ export default function Navbar() {
     router.refresh();
   }
 
+  const itemCls = (active: boolean) =>
+    `hover:text-primary transition ${active ? "text-primary font-semibold" : ""}`;
+
   return (
-    <header className="border-b bg-background sticky top-0 z-50">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between p-4">
-        <span className="text-lg font-bold text-primary">TeamAction</span>
-        <ul className="flex gap-6 text-sm">
-          <li>
-            <Link
-              href="/"
-              className={pathname === "/" ? "text-primary font-semibold" : ""}
-            >
-              Início
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/blog"
-              className={pathname?.startsWith("/blog") ? "text-primary font-semibold" : ""}
-            >
-              Blog
-            </Link>
-          </li>
+    <header className="w-full border-b border-border bg-card text-card-foreground sticky top-0 z-50">
+      <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
+        <Link href="/" className="text-xl font-bold text-primary">
+          TeamAction
+        </Link>
+
+        <nav className="flex items-center gap-6 text-sm">
+          <Link href="/blog" className={itemCls(pathname?.startsWith("/blog") ?? false)}>
+            Blog
+          </Link>
+          <Link href="/sobre" className={itemCls(pathname === "/sobre")}>
+            Sobre
+          </Link>
+
           {user ? (
             <>
-              <li>
-                <Link
-                  href="/backoffice"
-                  className={pathname?.startsWith("/backoffice") ? "text-primary font-semibold" : ""}
-                >
-                  Backoffice
-                </Link>
-              </li>
-              <li>
-                <button
-                  onClick={handleLogout}
-                  className="hover:underline text-red-600"
-                >
-                  Sair
-                </button>
-              </li>
+              <Link
+                href="/backoffice"
+                className={itemCls(pathname?.startsWith("/backoffice") ?? false)}
+              >
+                Backoffice
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition"
+              >
+                Sair
+              </button>
             </>
           ) : !loading ? (
-            <li>
-              <Link
-                href="/login"
-                className={pathname === "/login" ? "text-primary font-semibold" : ""}
-              >
-                Entrar
-              </Link>
-            </li>
+            <Link
+              href="/login"
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition"
+            >
+              Entrar
+            </Link>
           ) : null}
-        </ul>
-      </nav>
+        </nav>
+      </div>
     </header>
   );
 }
