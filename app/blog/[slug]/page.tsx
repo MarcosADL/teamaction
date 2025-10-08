@@ -1,4 +1,5 @@
 // app/blog/[slug]/page.tsx
+export const runtime = "nodejs";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPostBySlug } from "@/data/posts";

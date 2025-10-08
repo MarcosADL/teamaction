@@ -8,14 +8,11 @@ export const runtime = "nodejs";
 
 export default async function LoginPage({
   searchParams,
-}: {
-  searchParams?: { next?: string };
-}) {
+}: { searchParams?: { next?: string } }) {
   const next = sanitizeNext(searchParams?.next);
 
-  // Se já estiver autenticado, não mostra o form — redireciona de imediato
-  const s = await getSession();
-  if (s.authenticated) redirect(next);
+  const s = await getSession();            // NÃO deve lançar
+  if (s.authenticated) redirect(next);     // já logado? segue
 
   return <LoginForm nextPath={next} />;
 }

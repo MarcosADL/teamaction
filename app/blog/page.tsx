@@ -2,8 +2,8 @@
 import Link from "next/link";
 import { getPosts, searchPosts, type PostListItem } from "@/data/posts";
 
-export const revalidate = 60;           // ok para JSON estático
-export const dynamic = "force-dynamic"; // evita cache agressiva do RSC
+export const revalidate = 60;
+export const runtime = "nodejs";
 
 type SearchParams = { q?: string };
 
@@ -38,14 +38,16 @@ export default async function BlogPage({
                 </Link>
               </h2>
               <p className="text-sm opacity-80 mt-1">{p.excerpt}</p>
-              <p className="text-xs opacity-60 mt-2">{new Date(p.date).toLocaleDateString("pt-PT")}</p>
+              <p className="text-xs opacity-60 mt-2">
+                {new Date(p.date).toLocaleDateString("pt-PT")}
+              </p>
             </li>
           ))}
         </ul>
       </main>
     );
   } catch {
-    // nunca rebenta em prod
+    // fallback simpático em produção
     return (
       <main className="mx-auto max-w-5xl px-4 py-20 text-center space-y-4">
         <h1 className="text-2xl font-semibold">Ocorreu um erro no Blog</h1>
