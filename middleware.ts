@@ -1,32 +1,41 @@
+// middleware.ts (raiz)
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 
-// Alguns SDKs do Supabase colocam cookies com nomes ligeiramente diferentes.
-// Regra segura: aceitar "sb-access-token" ou qualquer cookie que pareça ser de auth do Supabase.
-function hasSupabaseSessionCookie(req: NextRequest) {
-  const cookies = req.cookies.getAll()?.map(c => c.name) || [];
-  return cookies.some((name) =>
-    name === "sb-access-token" ||
-    name === "sb-refresh-token" ||
-    /^sb-.*-auth-token$/.test(name) // variantes antigas
-  );
-}
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next();
 
-export function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
+  // Só protege o backoffice
+  if (!req.nextUrl.pathname.startsWith("/backoffice")) return res;
 
-  if (pathname.startsWith("/backoffice")) {
-    // Se não tiver sessão do Supabase → redireciona para login
-    if (!hasSupabaseSessionCookie(req)) {
-      const url = new URL("/login", req.url);
-      // preserva o destino para voltar depois do login
-      url.searchParams.set("next", pathname + (search || ""));
+  try {
+    const supabase = createMiddlewareClient({ req, res });
+
+    // Obtém/atualiza sessão a partir dos cookies
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      const url = new URL("/login", req.url); // ajusta se o teu login for /auth/signin
+      url.searchParams.set(
+        "next",
+        req.nextUrl.pathname + (req.nextUrl.search || "")
+      );
       return NextResponse.redirect(url);
     }
-    // Se tiver sessão, deixamos passar: o role "admin" será verificado no server (requireAdmin()).
-  }
 
-  return NextResponse.next();
+    return res; // sessão válida → segue
+  } catch {
+    // Em caso de erro inesperado, redireciona para login (evita página branca)
+    const url = new URL("/login", req.url);
+    url.searchParams.set(
+      "next",
+      req.nextUrl.pathname + (req.nextUrl.search || "")
+    );
+    return NextResponse.redirect(url);
+  }
 }
 
 export const config = {
