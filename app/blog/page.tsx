@@ -1,3 +1,4 @@
+// app/blog/page.tsx
 import Link from "next/link";
 import { getPosts, searchPosts, type PostListItem } from "@/data/posts";
 
@@ -12,11 +13,12 @@ export default async function BlogPage({
   try {
     const sp = (await searchParams) || {};
     const q = (sp.q ?? "").trim();
+
     const posts: PostListItem[] = q ? await searchPosts(q) : await getPosts();
 
     if (!posts?.length) {
       return (
-        <main className="mx-auto max-w-5xl px-4 py-10">
+        <main className="mx-auto max-w-5xl px-4 py-10 space-y-6">
           <h1 className="text-3xl font-bold">Blog</h1>
           <p className="opacity-80">Ainda não há artigos.</p>
         </main>
@@ -45,7 +47,7 @@ export default async function BlogPage({
     );
   } catch {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-20 text-center">
+      <main className="mx-auto max-w-5xl px-4 py-20 text-center space-y-4">
         <h1 className="text-2xl font-semibold">Ocorreu um erro no Blog</h1>
         <Link href="/" className="underline">Voltar ao início</Link>
       </main>
