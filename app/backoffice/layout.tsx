@@ -8,9 +8,7 @@ export const revalidate = 0;
 
 export default async function BackofficeLayout({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+}: { children: React.ReactNode }) {
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
@@ -25,24 +23,19 @@ export default async function BackofficeLayout({
     }
   );
 
-  // 1) Sessão válida?
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { data: { session } } = await supabase.auth.getSession();
 
   if (!session) {
-    // Sem sessão → login com retorno ao backoffice
-    redirect(`/login?next=/backoffice`);
+    redirect("/login?next=/backoffice");
   }
 
-  // 2) (Opcional) Verificação de role "admin"
   const user = session.user;
   const isAdmin =
     (user.app_metadata?.roles as string[] | undefined)?.includes("admin") ||
     user.user_metadata?.role === "admin";
 
   if (!isAdmin) {
-    redirect(`/login?next=/backoffice`); // ou outra página de “sem permissões”
+    redirect("/login?next=/backoffice");
   }
 
   return (
@@ -50,18 +43,11 @@ export default async function BackofficeLayout({
       <header className="mb-8 border-b pb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Painel de Administração</h1>
         <nav className="flex items-center gap-4 text-sm">
-          <a href="/backoffice/posts" className="hover:underline">
-            Posts
-          </a>
-          <a href="/blog" className="hover:underline">
-            Blog público
-          </a>
-          <a href="/" className="hover:underline">
-            Início
-          </a>
+          <a href="/backoffice/posts" className="hover:underline">Posts</a>
+          <a href="/blog" className="hover:underline">Blog público</a>
+          <a href="/" className="hover:underline">Início</a>
         </nav>
       </header>
-
       {children}
     </main>
   );
