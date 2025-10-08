@@ -1,90 +1,76 @@
 // app/blog/[slug]/page.tsx
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { Metadata } from "next";
+import { getPostBySlug } from "@/data/posts";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { getPostBySlug } from "@/lib/posts";
-import YouTubeEmbed from "@/components/youtube-embed";
-import { getYouTubeId } from "@/lib/youtube";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = 60;
 
 type Params = { slug: string };
 
-export async function generateMetadata(
-  { params }: { params: Params }
-): Promise<Metadata> {
-  const { slug } = params;
-  const post = await getPostBySlug(slug);
-  if (!post) return { title: "Artigo não encontrado — TeamAction" };
+export default async function BlogPostPage({ params }: { params: Params }) {
+  const post = await getPostBySlug(params.slug);
 
-  const title = post.title;
-  const description =
-    post.excerpt || "Artigo do Blog TeamAction sobre treino, tática e gestão.";
-  const ogImage = post.coverImage || "/og/post-og.svg";
-  const base =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") || "https://example.com";
-  const url = `${base}/blog/${post.slug}`;
-
-  return {
-    title: `${title} — TeamAction`,
-    description,
-    alternates: { canonical: url },
-    openGraph: {
-      title,
-      description,
-      type: "article",
-      url,
-      images: [{ url: ogImage }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      images: [ogImage],
-    },
-  };
-}
-
-export default async function PostPage({ params }: { params: Params }) {
-  const { slug } = params;
-  const post = await getPostBySlug(slug);
-  if (!post) return notFound();
-
-  const ytId = post.videoUrl ? getYouTubeId(post.videoUrl) : null;
+  if (!post) notFound();
 
   return (
-    <article className="mx-auto w-full max-w-3xl px-4 py-6">
-      {post.coverImage ? (
-        <div className="mb-6 overflow-hidden rounded-xl">
+    <main className="mx-auto max-w-3xl px-4 py-10 space-y-6">
+      <article className="space-y-6">
+        <header className="space-y-2 border-b pb-4">
+          <h1 className="text-3xl font-bold">{post.title}</h1>
+          <p className="text-sm opacity-70">
+            {new Date(post.date).toLocaleDateString("pt-PT")}
+          </p>
+        </header>
+
+        {post.coverImage && (
           <img
             src={post.coverImage}
-            alt=""
-            className="h-auto w-full object-cover"
-            loading="lazy"
+            alt={post.title}
+            className="w-full rounded-lg"
           />
+        )}
+
+        {post.videoUrl && (
+          <div className="aspect-video">
+            <iframe
+              src={post.videoUrl.replace("watch?v=", "embed/")}
+              title={post.title}
+              className="w-full h-full rounded-lg"
+              allowFullScreen
+            ></iframe>
+          </div>
+        )}
+
+        <div className="prose prose-invert max-w-none">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {post.content}
+          </ReactMarkdown>
         </div>
-      ) : null}
 
-      <h1 className="mb-2 text-3xl font-bold">{post.title}</h1>
-      {post.date ? (
-        <p className="mb-6 text-sm text-muted-foreground">
-          {new Date(post.date).toLocaleDateString("pt-PT")}
-        </p>
-      ) : null}
+        <footer className="border-t pt-4 text-sm opacity-70 space-y-2">
+          {post.categories?.length > 0 && (
+            <p>
+              <strong>Categorias:</strong> {post.categories.join(", ")}
+            </p>
+          )}
+          {post.tags?.length > 0 && (
+            <p>
+              <strong>Tags:</strong> {post.tags.join(", ")}
+            </p>
+          )}
+        </footer>
+      </article>
 
-      {ytId ? (
-        <div className="mb-6 overflow-hidden rounded-xl">
-          <YouTubeEmbed id={ytId} title={post.title} />
-        </div>
-      ) : null}
-
-      <div className="prose prose-neutral max-w-none dark:prose-invert">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {post.content ?? ""}
-        </ReactMarkdown>
+      <div className="pt-6">
+        <Link
+          href="/blog"
+          className="inline-block rounded border px-3 py-1 hover:bg-neutral-800"
+        >
+          ← Voltar ao blog
+        </Link>
       </div>
-    </article>
+    </main>
   );
 }
