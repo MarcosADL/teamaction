@@ -1,16 +1,12 @@
 // app/backoffice/page.tsx
-import Link from "next/link";
-import { requireAdmin } from "@/lib/auth";
-
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function BackofficeHome() {
-  // ✅ Garante que só admins veem esta página
-  await requireAdmin();
+import Link from "next/link";
 
+export default async function BackofficeHome() {
   return (
-    <main>
+    <section>
       <h1 className="mb-6 text-2xl font-semibold">Gestão (Backoffice)</h1>
 
       <p className="mb-4 text-sm text-muted-foreground">
@@ -37,6 +33,6 @@ export default async function BackofficeHome() {
           Utilizadores
         </Link>
       </div>
-    </main>
+    </section>
   );
 }

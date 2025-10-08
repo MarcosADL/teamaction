@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
-// ===== helpers =====
+// helpers
 const take1 = (v: string | string[] | undefined) =>
   Array.isArray(v) ? v[0] : v ?? "";
 
@@ -19,7 +19,6 @@ const norm = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
-// aceita published/publicado e draft/rascunho
 function parseStatusParam(raw: string): "all" | "published" | "draft" {
   const v = norm(raw).trim();
   if (!v) return "all";
@@ -28,7 +27,6 @@ function parseStatusParam(raw: string): "all" | "published" | "draft" {
   return "all";
 }
 
-// qualquer coisa ≠ 'published' é tratado como draft (compat com 'publicado')
 function normalizeStatus(s: unknown): "published" | "draft" {
   const v = String(s ?? "").toLowerCase();
   return v === "published" || v === "publicado" ? "published" : "draft";
@@ -44,10 +42,9 @@ type AdminPost = {
   status: "published" | "draft";
 };
 
-// ===== Server Action: apagar post via API interna =====
+// Server Action
 export async function deletePostAction(id: string) {
   "use server";
-  // construir base URL robusta para produção/preview/local
   const h = headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "http";
@@ -61,15 +58,12 @@ export async function deletePostAction(id: string) {
   revalidatePath("/backoffice/posts");
 }
 
-// ===== Dados para a lista (busca tudo e filtramos aqui) =====
 async function getAdminPosts(): Promise<AdminPost[]> {
-  // construir base URL robusta para produção/preview/local
   const h = headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "http";
   const base = `${proto}://${host}`;
 
-  // pedir bastante para cobrir o BO (ajusta se necessário)
   const url = `${base}/api/posts?page=1&pageSize=500`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
@@ -86,14 +80,12 @@ async function getAdminPosts(): Promise<AdminPost[]> {
       excerpt: string | null;
       date: string | null;
       image_url?: string | null;
-      cover_image?: string | null; // compat se vier com outro nome
+      cover_image?: string | null;
       status: string;
     }>;
   };
 
-  const items = data.items ?? [];
-  // normalizar para o shape usado no BO
-  const mapped: AdminPost[] = items.map((p) => ({
+  return (data.items ?? []).map((p) => ({
     id: p.id,
     slug: p.slug,
     title: p.title,
@@ -102,30 +94,44 @@ async function getAdminPosts(): Promise<AdminPost[]> {
     coverImage: (p.image_url ?? p.cover_image ?? null) as string | null,
     status: normalizeStatus(p.status),
   }));
-
-  return mapped;
 }
 
-// ===== Página =====
 type SearchParams = { [key: string]: string | string[] | undefined };
 type PageProps = { searchParams?: SearchParams };
 
 export default async function PostsAdminPage({ searchParams }: PageProps) {
-  // filtros
   const q = take1(searchParams?.q);
   const statusFilter = parseStatusParam(take1(searchParams?.status));
 
-  // dados (via API interna REST)
-  const posts = await getAdminPosts();
+  let posts: AdminPost[] = [];
+  let loadError: string | null = null;
 
-  // ordenação por data desc (fallback null -> fim)
+  try {
+    posts = await getAdminPosts();
+  } catch (err: any) {
+    loadError = err?.message ?? "Erro ao carregar posts.";
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">Posts</h3>
+          <Link className="underline" href="/backoffice/posts/new">
+            Novo
+          </Link>
+        </div>
+        <p className="text-sm text-red-600">{loadError}</p>
+      </div>
+    );
+  }
+
   const ordered = [...posts].sort((a, b) => {
     const ad = a.date ? new Date(a.date).getTime() : -Infinity;
     const bd = b.date ? new Date(b.date).getTime() : -Infinity;
     return bd - ad;
   });
 
-  // filtro (estado + pesquisa)
   const filtered = ordered.filter((p) => {
     if (statusFilter === "published" && p.status !== "published") return false;
     if (statusFilter === "draft" && p.status !== "draft") return false;
@@ -145,7 +151,6 @@ export default async function PostsAdminPage({ searchParams }: PageProps) {
         </Link>
       </div>
 
-      {/* feedback visual do filtro */}
       <div className="text-sm text-gray-600">
         <span className="mr-3">
           <strong>Estado:</strong>{" "}
@@ -162,7 +167,6 @@ export default async function PostsAdminPage({ searchParams }: PageProps) {
         ) : null}
       </div>
 
-      {/* Filtros com auto-submit ao mudar o estado */}
       <Filters
         qDefault={q}
         statusDefault={statusFilter}
@@ -179,7 +183,6 @@ export default async function PostsAdminPage({ searchParams }: PageProps) {
             ) : null}
 
             <span className="ml-2 flex items-center gap-3">
-              {/* ajusta o path de edição conforme a tua página */}
               <Link href={`/backoffice/posts/${p.id}`} className="underline">
                 Editar
               </Link>

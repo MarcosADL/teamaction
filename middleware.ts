@@ -1,3 +1,4 @@
+// middleware.ts (raiz)
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
@@ -5,14 +6,14 @@ import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
 
-  // ignora assets e páginas públicas
   const { pathname } = req.nextUrl;
+
+  // ignora assets/público
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/static") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/images") ||
-    pathname.startsWith("/api/public") ||
     pathname === "/" ||
     pathname === "/login" ||
     pathname.startsWith("/blog") ||
@@ -21,9 +22,8 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  // protege apenas o backoffice
-  const isBackoffice = pathname.startsWith("/backoffice");
-  if (!isBackoffice) return res;
+  // protege backoffice
+  if (!pathname.startsWith("/backoffice")) return res;
 
   const supabase = createMiddlewareClient({ req, res });
   const {
