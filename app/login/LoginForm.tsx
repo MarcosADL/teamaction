@@ -1,7 +1,6 @@
-// app/login/LoginForm.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase-browser";
 
 export default function LoginForm({ nextPath }: { nextPath: string }) {
@@ -9,6 +8,19 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // ✅ Fallback: se já houver sessão no browser, vai já embora
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!alive) return;
+      if (data.session) window.location.assign(nextPath);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [nextPath]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,8 +33,7 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
       });
       if (error) throw new Error(error.message);
       setMsg("Sessão iniciada!");
-      // nova navegação → garante cookies válidos no SSR
-      window.location.assign(nextPath);
+      window.location.assign(nextPath); // nova request → cookies SSR
     } catch (err: any) {
       setMsg(`Erro: ${err?.message ?? "Falha ao autenticar."}`);
     } finally {
