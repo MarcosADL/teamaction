@@ -19,7 +19,8 @@ export type Post = {
 export type PostListItem = Pick<Post, "slug"|"title"|"excerpt"|"date"|"coverImage"|"tags"|"categories">;
 
 // Import JSON estático (funciona bem no Vercel / RSC)
-import postsJson from "./posts.db.json" assert { type: "json" };
+import postsJson from "./posts.db.json";
+
 
 const ALL: Post[] = (postsJson as any as Post[])
   .filter(Boolean)
@@ -90,4 +91,17 @@ export async function getCategoriesWithCounts(): Promise<CategoryCount[]> {
   return Array.from(map.entries())
     .map(([category, count]) => ({ category, count }))
     .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
+}
+export async function getPostsByTag(tag: string): Promise<PostListItem[]> {
+  const t = tag.trim().toLowerCase();
+  return sortByDateDesc(onlyPublic(ALL))
+    .filter((p) => (p.tags || []).some((x) => x.toLowerCase() === t))
+    .map(toListItem);
+}
+
+export async function getPostsByCategory(category: string): Promise<PostListItem[]> {
+  const c = category.trim().toLowerCase();
+  return sortByDateDesc(onlyPublic(ALL))
+    .filter((p) => (p.categories || []).some((x) => x.toLowerCase() === c))
+    .map(toListItem);
 }
