@@ -30,7 +30,13 @@ function reqEnv() {
 export async function GET() {
   try {
     const { base, key } = reqEnv();
-    const url = `${base}/rest/v1/posts?select=slug,title,excerpt,summary,cover_image,cover_url,date,status&order=date.desc`;
+    const url =
+      `${base}/rest/v1/posts?` +
+      new URLSearchParams({
+        select: "id,slug,title,excerpt,summary,cover_image,cover_url,date,status",
+        order: "date.desc",
+      }).toString();
+
     const res = await fetch(url, {
       headers: {
         apikey: key,
@@ -40,11 +46,15 @@ export async function GET() {
       },
       cache: "no-store",
     });
-    const data = await res.json();
-    if (!res.ok) return Response.json({ error: data?.message || "Falhou listar." }, { status: res.status });
 
-    // normalizar no payload de resposta
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const msg = (data as any)?.message || `Falhou listar (${res.status})`;
+      return Response.json({ error: msg }, { status: res.status });
+    }
+
     const rows = (Array.isArray(data) ? data : []).map((r: any) => ({
+      id: r.id,
       slug: r.slug,
       title: r.title,
       excerpt: r.excerpt ?? r.summary ?? null,
@@ -52,6 +62,7 @@ export async function GET() {
       coverImage: r.cover_image ?? r.cover_url ?? null,
       status: r.status,
     }));
+
     return Response.json({ ok: true, items: rows });
   } catch (e: any) {
     return Response.json({ error: e?.message ?? "Erro a listar posts." }, { status: 500 });
@@ -90,19 +101,20 @@ export async function POST(req: NextRequest) {
 
     const { base, key } = reqEnv();
     const url = `${base}/rest/v1/posts?on_conflict=slug`;
+
     const record = {
       slug,
       title,
       excerpt,
-      summary: excerpt,
+      summary: excerpt, // manter compat
       content,
-      date,                 // YYYY-MM-DD
+      date,             // YYYY-MM-DD (ou null)
       cover_image: cover,
-      cover_url: cover,
+      cover_url: cover, // manter compat
       video_url: video,
       categories,
       tags,
-      status,               // "published" | "draft"
+      status,           // "published" | "draft"
     };
 
     const res = await fetch(url, {
@@ -121,8 +133,9 @@ export async function POST(req: NextRequest) {
     const data = await res.json().catch(() => null);
     if (!res.ok) {
       const msg =
-        (Array.isArray(data) ? data?.[0]?.message : data?.message) ||
-        (data as any)?.error || `Falhou (${res.status})`;
+        (Array.isArray(data) ? data?.[0]?.message : (data as any)?.message) ||
+        (data as any)?.error ||
+        `Falhou (${res.status})`;
       return Response.json({ error: msg }, { status: res.status });
     }
 
