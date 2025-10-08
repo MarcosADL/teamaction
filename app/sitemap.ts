@@ -1,50 +1,37 @@
-// app/sitemap.xml/route.ts
-import { NextResponse } from "next/server";
-import { getPosts } from "@/lib/posts";
+// app/sitemap.ts
+import type { MetadataRoute } from "next";
 
-// 👉 impede o Next de pré-renderizar isto no build
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = 60 * 60 * 24; // 1x/dia
 
-function baseUrl() {
-  // usa o teu domínio; podes pôr em ENV também
-  return process.env.NEXT_PUBLIC_SITE_URL || "https://teamaction-pt.vercel.app";
-}
+const BASE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") ||
+  "https://teamaction.vercel.app";
 
-export async function GET() {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const now = new Date();
+
+  const urls: MetadataRoute.Sitemap = [
+    { url: `${BASE_URL}/`, lastModified: now, changeFrequency: "weekly", priority: 1 },
+    { url: `${BASE_URL}/blog`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${BASE_URL}/categoria`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+  ];
+
+  // Opcional: acrescentar posts do blog.
+  // Evita falhar o build caso a origem dependa de DB/rede.
   try {
+    const { getPosts } = await import("@/data/posts");
     const posts = await getPosts();
-    const base = baseUrl();
-
-    const urls =
-      posts
-        .map(
-          (p) =>
-            `<url><loc>${base}/blog/${p.slug}</loc><changefreq>weekly</changefreq></url>`
-        )
-        .join("") || "";
-
-    const xml =
-      `<?xml version="1.0" encoding="UTF-8"?>` +
-      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
-      `<url><loc>${base}</loc><changefreq>weekly</changefreq></url>` +
-      `${urls}` +
-      `</urlset>`;
-
-    return new NextResponse(xml, {
-      headers: { "Content-Type": "application/xml; charset=utf-8" },
-    });
+    for (const p of posts) {
+      urls.push({
+        url: `${BASE_URL}/blog/${p.slug}`,
+        lastModified: p.date ? new Date(p.date) : now,
+        changeFrequency: "monthly",
+        priority: 0.5,
+      });
+    }
   } catch {
-    // fallback mínimo para não falhar build/runtime
-    const base = baseUrl();
-    const xml =
-      `<?xml version="1.0" encoding="UTF-8"?>` +
-      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
-      `<url><loc>${base}</loc></url>` +
-      `</urlset>`;
-    return new NextResponse(xml, {
-      headers: { "Content-Type": "application/xml; charset=utf-8" },
-    });
+    // silencioso para não partir o build (ex.: ligações a DB em build)
   }
+
+  return urls;
 }
