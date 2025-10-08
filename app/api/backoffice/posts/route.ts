@@ -43,10 +43,9 @@ export async function POST(req: NextRequest) {
     const tags = toArr(body?.tags);
     const status = (body?.status ?? "publicado").toString();
 
-    // --- SUPABASE REST (evita erro SSL do pg) ---
+    // --- SUPABASE REST (HTTPS, sem dores de SSL do pg) ---
     const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
     if (!baseUrl || !serviceKey) {
       return Response.json(
         { error: "Faltam NEXT_PUBLIC_SUPABASE_URL e/ou SUPABASE_SERVICE_ROLE_KEY." },
@@ -59,11 +58,11 @@ export async function POST(req: NextRequest) {
       slug,
       title,
       excerpt,
-      summary: excerpt,          // manter compat
+      summary: excerpt,       // compat
       content,
-      date,                      // PostgREST aceita 'YYYY-MM-DD'
+      date,                   // YYYY-MM-DD
       cover_image: cover,
-      cover_url: cover,          // manter compat
+      cover_url: cover,       // compat
       video_url: video,
       categories,
       tags,
@@ -76,13 +75,14 @@ export async function POST(req: NextRequest) {
         apikey: serviceKey,
         Authorization: `Bearer ${serviceKey}`,
         "Content-Type": "application/json",
+        "Accept-Profile": "public",   // 👈 schema leitura
+        "Content-Profile": "public",  // 👈 schema escrita
         Prefer: "resolution=merge-duplicates,return=representation",
       },
-      body: JSON.stringify([record]), // array para upsert/return
+      body: JSON.stringify([record]),
     });
 
     const data = await res.json().catch(() => null);
-
     if (!res.ok) {
       const msg =
         (Array.isArray(data) ? data?.[0]?.message : data?.message) ||
