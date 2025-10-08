@@ -1,10 +1,5 @@
-// lib/posts.ts — fonte única de dados (persistência local em JSON)
-import fs from "node:fs/promises";
-import path from "node:path";
-import { unstable_noStore as noStore } from "next/cache";
-
-const DATA_DIR = path.join(process.cwd(), "data");
-const DB_FILE = path.join(DATA_DIR, "posts.db.json");
+// lib/posts.ts — versão BD (Supabase/Postgres)
+import { pool } from "@/lib/db";
 
 // ----------------- Tipos -----------------
 export type Post = {
@@ -20,7 +15,7 @@ export type Post = {
   status?: "rascunho" | "publicado";
   author?: string;
   readingMinutes?: number;
-  videoUrl?: string; // vídeo opcional (YouTube)
+  videoUrl?: string;
 };
 
 export type PostListItem = {
@@ -37,7 +32,7 @@ export type CountItem = { name: string; count: number };
 
 // ----------------- Utils -----------------
 function slugify(s: string) {
-  return s
+  return (s || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -45,9 +40,7 @@ function slugify(s: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-// aceita apenas URLs que parecem ser de imagem (jpg|jpeg|png|webp|gif|svg)
-// permite caminhos relativos começados por "/" com essas extensões
-// permite também thumbs do YouTube (i.ytimg.com)
+// aceita apenas imagens / thumbs youtube
 function cleanUrl(u?: string): string | undefined {
   const t = (u ?? "").trim();
   if (!t || t === "/" || t.toLowerCase() === "about:blank") return undefined;
@@ -55,210 +48,301 @@ function cleanUrl(u?: string): string | undefined {
   const isRelative = t.startsWith("/");
   const imageExt = /\.(avif|jpe?g|png|webp|gif|svg)$/i;
 
-  if (isRelative) {
-    return imageExt.test(t) ? t : undefined;
-  }
+  if (isRelative) return imageExt.test(t) ? t : undefined;
 
   try {
     const url = new URL(t);
     const host = url.hostname.toLowerCase();
-    if (host === "i.ytimg.com") return t; // thumbs do youtube ok
-    if (imageExt.test(url.pathname)) return t; // termina com extensão de imagem
-    // qualquer outro host/URL sem extensão de imagem -> rejeita
+    if (host === "i.ytimg.com") return t;
+    if (imageExt.test(url.pathname)) return t;
     return undefined;
   } catch {
     return undefined;
   }
 }
 
-async function ensureFile() {
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.access(DB_FILE);
-  } catch {
-    const seed: Post[] = [
-      {
-        id: "seed-1",
-        slug: "bem-vindo-ao-blog-teamaction",
-        title: "Bem-vindo ao Blog TeamAction",
-        excerpt: "Arranque do nosso blog com tática, treino e gestão.",
-        content: "Conteúdo inicial.",
-        date: "2025-09-01",
-        categories: ["Notícias"],
-        tags: ["equipa", "blog"],
-        coverImage: "/og/post-og.svg",
-        status: "publicado",
-      },
-    ];
-    await fs.writeFile(DB_FILE, JSON.stringify(seed, null, 2), "utf8");
-  }
-}
-
-async function readDB(): Promise<Post[]> {
-  noStore(); // evitar cache
-  await ensureFile();
-  const raw = await fs.readFile(DB_FILE, "utf8");
-  const arr = JSON.parse(raw) as Post[];
-  return Array.isArray(arr) ? arr : [];
-}
-
-async function writeDB(items: Post[]) {
-  await ensureFile();
-  await fs.writeFile(DB_FILE, JSON.stringify(items, null, 2), "utf8");
-}
-
-// -------------- API pública --------------
-export async function getAllPosts(): Promise<Post[]> {
-  return readDB();
-}
-
-export async function getPostById(id: string) {
-  const all = await getAllPosts();
-  return all.find((p) => p.id === id);
-}
-
-export async function getPosts(): Promise<PostListItem[]> {
-  const db = await readDB();
-  return db
-    .filter((p) => (p.status ?? "publicado") === "publicado")
-    .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
-    .map((p) => ({
-      slug: p.slug,
-      title: p.title,
-      excerpt: p.excerpt,
-      date: p.date,
-      categories: p.categories,
-      tags: p.tags,
-      coverImage: cleanUrl(p.coverImage),
-    }));
-}
-
-export async function searchPosts(q: string): Promise<PostListItem[]> {
-  const s = q.toLowerCase();
-  const list = await getPosts();
-  return list.filter(
-    (p) =>
-      p.title.toLowerCase().includes(s) ||
-      (p.excerpt?.toLowerCase().includes(s) ?? false) ||
-      (p.tags ?? []).some((t) => t.toLowerCase().includes(s)) ||
-      (p.categories ?? []).some((c) => c.toLowerCase().includes(s))
-  );
-}
-
-export async function getPostBySlug(slug: string): Promise<Post | undefined> {
-  const db = await readDB();
-  const p = db.find(
-    (x) => x.slug === slug && (x.status ?? "publicado") === "publicado"
-  );
-  if (!p) return undefined;
+// mapeia linha da BD -> Post (usamos nomes do teu modelo)
+function rowToPost(r: any): Post {
   return {
-    ...p,
-    coverImage: cleanUrl(p.coverImage),
-    videoUrl: (p.videoUrl ?? "").trim() || undefined,
+    id: r.id,
+    slug: r.slug,
+    title: r.title,
+    excerpt: r.excerpt ?? undefined,
+    content: r.content ?? "",
+    date: r.date ? String(r.date) : undefined,
+    categories: (r.categories ?? []) as string[],
+    tags: (r.tags ?? []) as string[],
+    coverImage: cleanUrl(r.image_url ?? undefined),
+    status: (r.status as "publicado" | "rascunho") ?? "publicado",
+    author: r.author ?? undefined,
+    readingMinutes: r.reading_minutes ?? undefined,
+    videoUrl: (r.video_url ?? "").trim() || undefined,
   };
 }
 
+// ----------------- Leitura -----------------
+export async function getAllPosts(): Promise<Post[]> {
+  const { rows } = await pool.query(
+    `select id, slug, title, excerpt, content, date, categories, tags,
+            image_url, video_url, status, author, reading_minutes
+     from public.posts
+     order by coalesce(date, created_at) desc nulls last, created_at desc`
+  );
+  return rows.map(rowToPost);
+}
+
+export async function getPostById(id: string) {
+  const { rows } = await pool.query(
+    `select id, slug, title, excerpt, content, date, categories, tags,
+            image_url, video_url, status, author, reading_minutes
+     from public.posts
+     where id = $1
+     limit 1`,
+    [id]
+  );
+  return rows[0] ? rowToPost(rows[0]) : undefined;
+}
+
+export async function getPosts(): Promise<PostListItem[]> {
+  const { rows } = await pool.query(
+    `select slug, title, excerpt, date, categories, tags, image_url
+     from public.posts
+     where coalesce(status,'publicado') = 'publicado'
+     order by coalesce(date, created_at) desc nulls last, created_at desc`
+  );
+  return rows.map((r) => ({
+    slug: r.slug,
+    title: r.title,
+    excerpt: r.excerpt ?? undefined,
+    date: r.date ? String(r.date) : undefined,
+    categories: (r.categories ?? []) as string[],
+    tags: (r.tags ?? []) as string[],
+    coverImage: cleanUrl(r.image_url ?? undefined),
+  }));
+}
+
+export async function searchPosts(q: string): Promise<PostListItem[]> {
+  const s = `%${q}%`;
+  const { rows } = await pool.query(
+    `select slug, title, excerpt, date, categories, tags, image_url
+     from public.posts
+     where coalesce(status,'publicado') = 'publicado'
+       and (
+         title ilike $1
+         or excerpt ilike $1
+         or array_to_string(tags, ',') ilike $1
+         or array_to_string(categories, ',') ilike $1
+       )
+     order by coalesce(date, created_at) desc nulls last, created_at desc`,
+    [s]
+  );
+  return rows.map((r) => ({
+    slug: r.slug,
+    title: r.title,
+    excerpt: r.excerpt ?? undefined,
+    date: r.date ? String(r.date) : undefined,
+    categories: (r.categories ?? []) as string[],
+    tags: (r.tags ?? []) as string[],
+    coverImage: cleanUrl(r.image_url ?? undefined),
+  }));
+}
+
+export async function getPostBySlug(slug: string): Promise<Post | undefined> {
+  const { rows } = await pool.query(
+    `select id, slug, title, excerpt, content, date, categories, tags,
+            image_url, video_url, status, author, reading_minutes
+     from public.posts
+     where slug = $1
+       and coalesce(status,'publicado') = 'publicado'
+     limit 1`,
+    [slug]
+  );
+  return rows[0] ? rowToPost(rows[0]) : undefined;
+}
+
 export async function getLatestPosts(n: number): Promise<PostListItem[]> {
-  const list = await getPosts();
-  return list.slice(0, n);
+  const { rows } = await pool.query(
+    `select slug, title, excerpt, date, categories, tags, image_url
+     from public.posts
+     where coalesce(status,'publicado') = 'publicado'
+     order by coalesce(date, created_at) desc nulls last, created_at desc
+     limit $1`,
+    [n]
+  );
+  return rows.map((r) => ({
+    slug: r.slug,
+    title: r.title,
+    excerpt: r.excerpt ?? undefined,
+    date: r.date ? String(r.date) : undefined,
+    categories: (r.categories ?? []) as string[],
+    tags: (r.tags ?? []) as string[],
+    coverImage: cleanUrl(r.image_url ?? undefined),
+  }));
 }
 
 export async function getCategoriesWithCounts(): Promise<CountItem[]> {
-  const list = await getPosts();
-  const map = new Map<string, number>();
-  list.forEach((p) =>
-    (p.categories ?? []).forEach((c) => map.set(c, (map.get(c) ?? 0) + 1))
+  const { rows } = await pool.query(
+    `select lower(trim(unnest(categories))) as name, count(*)::int as count
+     from public.posts
+     where coalesce(status,'publicado') = 'publicado'
+     group by 1
+     order by 2 desc, 1 asc`
   );
-  return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+  return rows;
 }
 
 export async function getPostsByCategory(category: string): Promise<PostListItem[]> {
-  const list = await getPosts();
-  const c = category.toLowerCase();
-  return list.filter((p) => (p.categories ?? []).some((x) => x.toLowerCase() === c));
+  const { rows } = await pool.query(
+    `select slug, title, excerpt, date, categories, tags, image_url
+     from public.posts
+     where coalesce(status,'publicado') = 'publicado'
+       and exists (
+         select 1 from unnest(categories) c where lower(c) = lower($1)
+       )
+     order by coalesce(date, created_at) desc nulls last, created_at desc`,
+    [category]
+  );
+  return rows.map((r) => ({
+    slug: r.slug,
+    title: r.title,
+    excerpt: r.excerpt ?? undefined,
+    date: r.date ? String(r.date) : undefined,
+    categories: (r.categories ?? []) as string[],
+    tags: (r.tags ?? []) as string[],
+    coverImage: cleanUrl(r.image_url ?? undefined),
+  }));
 }
 
 export async function getTagsWithCounts(): Promise<CountItem[]> {
-  const list = await getPosts();
-  const map = new Map<string, number>();
-  list.forEach((p) =>
-    (p.tags ?? []).forEach((t) => map.set(t, (map.get(t) ?? 0) + 1))
+  const { rows } = await pool.query(
+    `select lower(trim(unnest(tags))) as name, count(*)::int as count
+     from public.posts
+     where coalesce(status,'publicado') = 'publicado'
+     group by 1
+     order by 2 desc, 1 asc`
   );
-  return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+  return rows;
 }
 
 export async function getPostsByTag(tag: string): Promise<PostListItem[]> {
-  const list = await getPosts();
-  const t = tag.toLowerCase();
-  return list.filter((p) => (p.tags ?? []).some((x) => x.toLowerCase() === t));
+  const { rows } = await pool.query(
+    `select slug, title, excerpt, date, categories, tags, image_url
+     from public.posts
+     where coalesce(status,'publicado') = 'publicado'
+       and exists (
+         select 1 from unnest(tags) t where lower(t) = lower($1)
+       )
+     order by coalesce(date, created_at) desc nulls last, created_at desc`,
+    [tag]
+  );
+  return rows.map((r) => ({
+    slug: r.slug,
+    title: r.title,
+    excerpt: r.excerpt ?? undefined,
+    date: r.date ? String(r.date) : undefined,
+    categories: (r.categories ?? []) as string[],
+    tags: (r.tags ?? []) as string[],
+    coverImage: cleanUrl(r.image_url ?? undefined),
+  }));
 }
 
 // -------------- CRUD (Backoffice) --------------
 export async function createPost(input: Omit<Post, "id" | "slug"> & { slug?: string }) {
-  const db = await readDB();
-  const id = crypto.randomUUID();
   const slug = input.slug ? slugify(input.slug) : slugify(input.title);
-  if (db.some((p) => p.slug === slug)) {
-    throw new Error("Slug já existe");
-  }
-  const post: Post = {
-    id,
+
+  // slug único
+  const ex = await pool.query(`select 1 from public.posts where slug = $1 limit 1`, [slug]);
+  if (ex.rowCount) throw new Error("Slug já existe");
+
+  const params = [
     slug,
-    title: input.title,
-    excerpt: input.excerpt,
-    content: input.content,
-    date: input.date,
-    categories: input.categories ?? [],
-    tags: input.tags ?? [],
-    coverImage: cleanUrl(input.coverImage),
-    status: input.status ?? "publicado",
-    author: input.author,
-    readingMinutes: input.readingMinutes,
-    videoUrl: (input.videoUrl ?? "").trim() || undefined,
-  };
-  db.unshift(post);
-  await writeDB(db);
-  return post;
+    input.title,
+    input.excerpt ?? null,
+    input.content ?? "",
+    input.date ?? null,
+    cleanUrl(input.coverImage) ?? null,
+    input.videoUrl ?? null,
+    (input.categories ?? []) as any,
+    (input.tags ?? []) as any,
+    (input.status ?? "publicado"),
+    input.author ?? null,
+    input.readingMinutes ?? null,
+  ];
+
+  const { rows } = await pool.query(
+    `insert into public.posts
+      (slug, title, excerpt, content, date, image_url, video_url,
+       categories, tags, status, author, reading_minutes)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     returning id, slug, title, excerpt, content, date, categories, tags,
+               image_url, video_url, status, author, reading_minutes`,
+    params
+  );
+  return rowToPost(rows[0]);
 }
 
 export async function updatePost(id: string, patch: Partial<Post>) {
-  const db = await readDB();
-  const idx = db.findIndex((p) => p.id === id);
-  if (idx < 0) throw new Error("Post não encontrado");
-  const prev = db[idx];
-
-  let nextSlug = prev.slug;
+  // se vier slug novo, validar unicidade
   if (typeof patch.slug === "string" && patch.slug.trim()) {
-    nextSlug = slugify(patch.slug);
-    if (db.some((p, i) => i !== idx && p.slug === nextSlug)) {
-      throw new Error("Slug já existe");
-    }
+    const nextSlug = slugify(patch.slug);
+    const ex = await pool.query(
+      `select 1 from public.posts where slug = $1 and id <> $2 limit 1`,
+      [nextSlug, id]
+    );
+    if (ex.rowCount) throw new Error("Slug já existe");
   }
 
-  const next: Post = {
-    ...prev,
-    ...patch,
-    slug: nextSlug,
-    coverImage: patch.hasOwnProperty("coverImage")
-      ? cleanUrl(patch.coverImage)
-      : prev.coverImage,
-    videoUrl: patch.hasOwnProperty("videoUrl")
-      ? ((patch.videoUrl ?? "").trim() || undefined)
-      : prev.videoUrl,
+  // construir SET dinâmico
+  const set: string[] = [];
+  const vals: any[] = [];
+  const push = (sql: string, v: any) => {
+    vals.push(v);
+    set.push(`${sql} = $${vals.length}`);
   };
-  db[idx] = next;
-  await writeDB(db);
-  return next;
+
+  if (patch.title !== undefined) push("title", patch.title);
+  if (patch.excerpt !== undefined) push("excerpt", patch.excerpt);
+  if (patch.content !== undefined) push("content", patch.content);
+  if (patch.date !== undefined) push("date", patch.date || null);
+  if (patch.coverImage !== undefined) push("image_url", cleanUrl(patch.coverImage) ?? null);
+  if (patch.videoUrl !== undefined) push("video_url", patch.videoUrl || null);
+  if (patch.categories !== undefined) push("categories", patch.categories ?? []);
+  if (patch.tags !== undefined) push("tags", patch.tags ?? []);
+  if (patch.status !== undefined) push("status", patch.status);
+  if (patch.author !== undefined) push("author", patch.author || null);
+  if (patch.readingMinutes !== undefined) push("reading_minutes", patch.readingMinutes ?? null);
+  if (patch.slug !== undefined) push("slug", slugify(patch.slug!));
+
+  if (!set.length) {
+    const { rows } = await pool.query(
+      `select id, slug, title, excerpt, content, date, categories, tags,
+              image_url, video_url, status, author, reading_minutes
+       from public.posts where id = $1`,
+      [id]
+    );
+    if (!rows[0]) throw new Error("Post não encontrado");
+    return rowToPost(rows[0]);
+  }
+
+  vals.push(id);
+  const { rows } = await pool.query(
+    `update public.posts
+       set ${set.join(", ")}, updated_at = now()
+     where id = $${vals.length}
+     returning id, slug, title, excerpt, content, date, categories, tags,
+               image_url, video_url, status, author, reading_minutes`,
+    vals
+  );
+  if (!rows[0]) throw new Error("Post não encontrado");
+  return rowToPost(rows[0]);
 }
 
 export async function deletePost(id: string) {
-  const db = await readDB();
-  const next = db.filter((p) => p.id !== id);
-  await writeDB(next);
+  await pool.query(`delete from public.posts where id = $1`, [id]);
   return { ok: true };
 }
 
-// -------------- Aliases de compatibilidade --------------
+// -------------- Alias compatibilidade --------------
 export async function addPost(
   input: Omit<Post, "id" | "slug"> & { slug?: string }
 ) {
