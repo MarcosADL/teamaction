@@ -1,20 +1,21 @@
-// components/LogoutButton.tsx
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase-browser';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase-browser";
 
 export default function LogoutButton() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  async function onClick() {
+  async function handleLogout() {
     setLoading(true);
     try {
       await supabase.auth.signOut();
-      router.replace('/');
+      router.replace("/login");
       router.refresh();
+    } catch (err) {
+      console.error("Erro ao terminar sessão:", err);
     } finally {
       setLoading(false);
     }
@@ -22,11 +23,11 @@ export default function LogoutButton() {
 
   return (
     <button
-      onClick={onClick}
+      onClick={handleLogout}
       disabled={loading}
-      className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted/40 disabled:opacity-60"
+      className="border px-3 py-1.5 rounded-md text-sm hover:bg-muted/40"
     >
-      {loading ? 'A sair…' : 'Sair'}
+      {loading ? "A sair…" : "Sair"}
     </button>
   );
 }
