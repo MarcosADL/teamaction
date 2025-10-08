@@ -1,3 +1,4 @@
+// app/login/LoginForm.tsx
 "use client";
 
 import { useState } from "react";
@@ -20,7 +21,7 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
       });
       if (error) throw new Error(error.message);
       setMsg("Sessão iniciada!");
-      // nova navegação para garantir cookies SSR
+      // nova navegação → garante cookies válidos no SSR
       window.location.assign(nextPath);
     } catch (err: any) {
       setMsg(`Erro: ${err?.message ?? "Falha ao autenticar."}`);
