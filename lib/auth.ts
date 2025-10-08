@@ -5,6 +5,16 @@ import { supabaseAdmin } from "./supabase-admin";
 
 export type AppRole = "user" | "admin";
 
+/** Permite marcar admins por ENV: ADMIN_EMAILS=mail1@mail.com,mail2@mail.com */
+function isAdminEmail(email?: string | null) {
+  const list = (process.env.ADMIN_EMAILS || "")
+    .toLowerCase()
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return email ? list.includes(email.toLowerCase()) : false;
+}
+
 export async function getCurrentUser() {
   const supabase = supabaseServer();
   const { data, error } = await supabase.auth.getUser();
@@ -12,20 +22,37 @@ export async function getCurrentUser() {
   return data.user ?? null;
 }
 
-export async function requireAdmin() {
+export async function getSession() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login?e=auth");
-  const role =
-    (user.app_metadata?.role as AppRole | undefined) ??
-    (user.user_metadata?.role as AppRole | undefined) ??
+
+  const roleMeta =
+    (user?.app_metadata?.role as AppRole | undefined) ??
+    (user?.user_metadata?.role as AppRole | undefined) ??
     "user";
-  if (role !== "admin") redirect("/login?e=restricted");
-  return user;
+
+  // Se o email estiver na ENV, força admin (útil em prod para não entrares em loop)
+  const role: AppRole = isAdminEmail(user?.email) ? "admin" : roleMeta;
+
+  return {
+    authenticated: !!user,
+    email: user?.email ?? null,
+    role,
+  };
+}
+
+export async function requireAdmin() {
+  const s = await getSession();
+  if (!s.authenticated) redirect("/login?e=auth&next=/backoffice");
+  if (s.role !== "admin") redirect("/login?e=restricted&next=/backoffice");
+  return s;
 }
 
 export async function listUsers() {
   const admin = supabaseAdmin();
-  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const { data, error } = await admin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
   if (error) throw error;
 
   return (data?.users ?? []).map((u) => ({
@@ -42,32 +69,21 @@ export async function listUsers() {
 
 export async function setUserRoleByEmail(email: string, role: AppRole) {
   const admin = supabaseAdmin();
-  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const { data, error } = await admin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
   if (error) throw error;
 
-  const user = (data?.users ?? []).find((u) => (u.email ?? "").toLowerCase() === email.toLowerCase());
+  const user = (data?.users ?? []).find(
+    (u) => (u.email ?? "").toLowerCase() === email.toLowerCase()
+  );
   if (!user) throw new Error("Utilizador não encontrado");
 
   const resp = await admin.auth.admin.updateUserById(user.id, {
     app_metadata: { role },
-    // (opcional) replica também em user_metadata:
     user_metadata: { ...(user.user_metadata || {}), role },
   });
   if (resp.error) throw resp.error;
   return resp.data;
 }
-// lib/auth.ts (acrescento)
-export async function getSession() {
-  const user = await getCurrentUser();
-  const role =
-    (user?.app_metadata?.role as AppRole | undefined) ??
-    (user?.user_metadata?.role as AppRole | undefined) ??
-    "user";
-
-  return {
-    authenticated: !!user,
-    email: user?.email ?? null,
-    role,
-  };
-}
-
