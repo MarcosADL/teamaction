@@ -31,15 +31,16 @@ export async function createPost(formData: FormData) {
 
   await pool.query(
   `insert into posts
-   (slug, title, excerpt, content, date,
+   (slug, title, excerpt, summary, content, date,
     cover_image, cover_url,
     video_url, categories, tags, status)
-   values ($1,$2,$3,$4, coalesce($5::date, now()),
+   values ($1,$2,$3,$3,$4, coalesce($5::date, now()),
            $6, $6,
            $7, $8::text[], $9::text[], $10)
    on conflict (slug) do update set
      title=excluded.title,
      excerpt=excluded.excerpt,
+     summary=excluded.summary,
      content=excluded.content,
      date=excluded.date,
      cover_image=excluded.cover_image,
@@ -50,6 +51,5 @@ export async function createPost(formData: FormData) {
      status=excluded.status`,
   [slug, title, excerpt, content, date, cover, video, categories, tags, status]
 );
-
   return { ok: true, slug };
 }
