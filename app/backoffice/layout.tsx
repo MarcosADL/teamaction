@@ -1,27 +1,27 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
 import LogoutButton from "@/components/LogoutButton";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { createServerClient } from "@supabase/ssr";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function BackofficeLayout({ children }: { children: React.ReactNode }) {
   const store = await cookies();
-  const sb = createServerClient(
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { cookies: { get: (n: string) => store.get(n)?.value } }
   );
-  const { data: { session } } = await sb.auth.getSession();
+
+  const { data: { session } } = await supabase.auth.getSession();
   if (!session) redirect("/login?next=/backoffice");
 
-  const user = session.user;
-  const isAdmin =
-    (user.app_metadata?.roles as string[] | undefined)?.includes("admin") ||
-    user.user_metadata?.role === "admin";
-  if (!isAdmin) redirect("/login?next=/backoffice");
+  // (opcional) roles, ativa se precisares:
+  // const u = session.user;
+  // const isAdmin = (u.app_metadata?.roles as string[]|undefined)?.includes("admin") || u.user_metadata?.role === "admin";
+  // if (!isAdmin) redirect("/login?next=/backoffice");
 
   return (
     <html lang="pt">

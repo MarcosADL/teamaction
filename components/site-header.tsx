@@ -2,8 +2,8 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import LogoutButton from "@/components/LogoutButton";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+
+export const revalidate = 0; // sempre atual
 
 function firstName(name?: string) {
   if (!name) return "";
@@ -16,7 +16,7 @@ export default async function SiteHeader() {
 
   return (
     <header className="border-b">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+      <div className="mx-auto max-w-6xl items-center justify-between px-4 py-3 flex">
         <Link href="/" className="text-lg font-semibold">
           TeamAction
         </Link>
@@ -26,35 +26,23 @@ export default async function SiteHeader() {
             Blog
           </Link>
 
-          {session?.role === "admin" && (
+          {session.role === "admin" && (
             <Link href="/backoffice" className="hover:underline">
               Backoffice
             </Link>
           )}
 
-          {session ? (
-            <>
-              <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="inline-grid h-6 w-6 place-items-center rounded-full bg-emerald-500 text-white">
-                  {(firstName(session.name).slice(0, 2) || "AD").toUpperCase()}
-                </span>
-                Olá, {firstName(session.name) || "Admin"}
-              </span>
-
-              <LogoutButton />
-            </>
+          {!session.authenticated ? (
+            <Link href="/login" className="hover:underline">
+              Login
+            </Link>
           ) : (
-            <>
-              <Link href="/login" className="hover:underline">
-                Entrar
-              </Link>
-              <Link
-                href="/register"
-                className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted/40"
-              >
-                Registar
-              </Link>
-            </>
+            <div className="flex items-center gap-3">
+              <span className="text-sm opacity-80">
+                {firstName(session.email || undefined)}
+              </span>
+              <LogoutButton />
+            </div>
           )}
         </nav>
       </div>

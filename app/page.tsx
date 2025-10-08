@@ -1,26 +1,32 @@
 ﻿// app/page.tsx
 import Link from "next/link";
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <main className="container mx-auto max-w-3xl px-4 py-12">
-      <h1 className="text-3xl font-semibold">TeamAction</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Plataforma para clubes e equipas amadoras.
-      </p>
+    <main className="min-h-dvh flex flex-col items-center justify-center bg-background text-foreground p-6">
+      <div className="max-w-2xl w-full text-center space-y-6">
+        <h1 className="text-4xl font-bold tracking-tight text-primary">
+          TeamAction
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          Plataforma para clubes e equipas amadoras.
+        </p>
 
-      <ul className="mt-6 list-disc pl-5 space-y-1">
-        <li>
-          <Link href="/blog" className="underline">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Link
+            href="/blog"
+            className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition"
+          >
             Ir para o Blog
           </Link>
-        </li>
-        <li>
-          <Link href="/register" className="underline">
+          <Link
+            href="/register"
+            className="px-6 py-3 rounded-lg bg-accent text-accent-foreground font-medium hover:bg-accent/90 transition"
+          >
             Registar
           </Link>
-        </li>
-      </ul>
+        </div>
+      </div>
     </main>
   );
 }

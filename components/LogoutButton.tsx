@@ -14,7 +14,7 @@ export default function LogoutButton() {
         finally { setLoading(false); }
       }}
       disabled={loading}
-      className="border px-3 py-1.5 rounded-md text-sm hover:bg-muted/40"
+      className="border px-3 py-1.5 rounded-md text-sm"
     >
       {loading ? "A sair…" : "Sair"}
     </button>

@@ -1,73 +1,55 @@
-import { listUsers, getSession } from "@/lib/auth";
-import { promoteAction, downgradeAction } from "./actions";
+// app/backoffice/users/page.tsx
+import { requireAdmin, listUsers } from "@/lib/auth";
+import { updateRoleAction } from "./actions";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
-export default async function UsersAdminPage() {
-  const me = await getSession();
+export default async function UsersPage() {
+  await requireAdmin();
   const users = await listUsers();
 
   return (
-    <>
-      <h1 className="mb-6 text-2xl font-semibold">Utilizadores</h1>
+    <main className="p-6 space-y-6">
+      <h1 className="text-2xl font-semibold">Utilizadores</h1>
 
       <div className="overflow-x-auto">
-        <table className="w-full border text-sm">
-          <thead className="bg-muted/40">
+        <table className="w-full text-sm">
+          <thead className="text-left border-b">
             <tr>
-              <th className="border px-3 py-2 text-left">Nome</th>
-              <th className="border px-3 py-2 text-left">Email</th>
-              <th className="border px-3 py-2">Role</th>
-              <th className="border px-3 py-2">Criado</th>
-              <th className="border px-3 py-2">Ações</th>
+              <th className="py-2 pr-4">Email</th>
+              <th className="py-2 pr-4">Role</th>
+              <th className="py-2 pr-4">Ações</th>
             </tr>
           </thead>
           <tbody>
             {users.map((u) => (
-              <tr key={u.id}>
-                <td className="border px-3 py-2">{u.name}</td>
-                <td className="border px-3 py-2">{u.email}</td>
-                <td className="border px-3 py-2 text-center">{u.role}</td>
-                <td className="border px-3 py-2">
-                  {new Date(u.createdAt).toLocaleString()}
-                </td>
-                <td className="border px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    {u.role !== "admin" && (
-                      <form action={promoteAction}>
-                        <input type="hidden" name="email" value={u.email} />
-                        <button className="rounded-md border px-3 py-1 hover:bg-emerald-50">
-                          Promover
-                        </button>
-                      </form>
-                    )}
-                    {u.role === "admin" && u.email !== me?.email && (
-                      <form action={downgradeAction}>
-                        <input type="hidden" name="email" value={u.email} />
-                        <button className="rounded-md border px-3 py-1 hover:bg-muted/40">
-                          Downgrade
-                        </button>
-                      </form>
-                    )}
-                  </div>
+              <tr key={u.id} className="border-b">
+                <td className="py-2 pr-4">{u.email}</td>
+                <td className="py-2 pr-4">{u.role}</td>
+                <td className="py-2 pr-4">
+                  <form action={updateRoleAction} className="flex items-center gap-2">
+                    <input type="hidden" name="email" value={u.email} />
+                    <select
+                      name="role"
+                      defaultValue={u.role}
+                      className="border rounded px-2 py-1"
+                    >
+                      <option value="user">user</option>
+                      <option value="admin">admin</option>
+                    </select>
+                    <button
+                      type="submit"
+                      className="px-3 py-1 rounded border hover:bg-neutral-100"
+                    >
+                      Guardar
+                    </button>
+                  </form>
                 </td>
               </tr>
             ))}
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={5} className="border px-3 py-6 text-center text-muted-foreground">
-                  Sem utilizadores.
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
-
-      <p className="mt-4 text-xs text-muted-foreground">
-        Nota: alterações são auditadas em <code>data/audit.log.json</code>.
-      </p>
-    </>
+    </main>
   );
 }
