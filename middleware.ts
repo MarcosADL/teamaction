@@ -1,30 +1,26 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 
-function hasSupabaseSessionCookie(req: NextRequest) {
-  const cookies = req.cookies.getAll().map((c) => c.name);
-  return cookies.some(
-    (name) =>
-      name === "sb-access-token" ||
-      name === "sb-refresh-token" ||
-      /^sb-.*-auth-token$/.test(name)
-  );
-}
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next();
+  const { pathname } = req.nextUrl;
 
-export function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
+  // só proteger backoffice
+  if (!pathname.startsWith("/backoffice")) return res;
 
-  if (pathname.startsWith("/backoffice")) {
-    if (!hasSupabaseSessionCookie(req)) {
-      const url = new URL("/login", req.url);
-      url.searchParams.set("next", pathname + (search || ""));
-      return NextResponse.redirect(url);
-    }
+  const supabase = createMiddlewareClient({ req, res });
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("next", pathname + (req.nextUrl.search || ""));
+    return NextResponse.redirect(url);
   }
-
-  return NextResponse.next();
+  return res;
 }
 
 export const config = {
-  matcher: ["/backoffice/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|images|static).*)"],
 };
