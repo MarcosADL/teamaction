@@ -22,7 +22,7 @@ function toListItem(r: any): PostListItem {
     title: r.title,
     excerpt: r.excerpt,
     date: r.date,
-    coverImage: r.cover_image ?? null,
+    coverImage: r.cover_image ?? null, // vem do alias nas queries
   };
 }
 
@@ -33,7 +33,7 @@ function toPost(r: any): Post {
     excerpt: r.excerpt,
     content: r.content,
     date: r.date,
-    coverImage: r.cover_image ?? null,
+    coverImage: r.cover_image ?? null, // vem do alias nas queries
     videoUrl: r.video_url ?? null,
     categories: (r.categories ?? []) as string[],
     tags: (r.tags ?? []) as string[],
@@ -43,7 +43,9 @@ function toPost(r: any): Post {
 // Lista todos os posts publicados
 export async function getPosts(): Promise<PostListItem[]> {
   const { rows } = await pool.query(
-    `select slug, title, excerpt, cover_image, to_char(date,'YYYY-MM-DD') as date
+    `select slug, title, excerpt,
+            coalesce(cover_image, cover_url) as cover_image,
+            to_char(date,'YYYY-MM-DD') as date
      from posts
      where status = 'publicado'
      order by date desc`
@@ -54,7 +56,9 @@ export async function getPosts(): Promise<PostListItem[]> {
 // Um post por slug
 export async function getPost(slug: string): Promise<Post | null> {
   const { rows } = await pool.query(
-    `select slug, title, excerpt, content, cover_image, video_url,
+    `select slug, title, excerpt, content,
+            coalesce(cover_image, cover_url) as cover_image,
+            video_url,
             to_char(date,'YYYY-MM-DD') as date, categories, tags
      from posts
      where slug = $1 and status in ('publicado','rascunho')
@@ -67,7 +71,9 @@ export async function getPost(slug: string): Promise<Post | null> {
 // Últimos N posts
 export async function getLatestPosts(limit = 5): Promise<PostListItem[]> {
   const { rows } = await pool.query(
-    `select slug, title, excerpt, cover_image, to_char(date,'YYYY-MM-DD') as date
+    `select slug, title, excerpt,
+            coalesce(cover_image, cover_url) as cover_image,
+            to_char(date,'YYYY-MM-DD') as date
      from posts
      where status = 'publicado'
      order by date desc
@@ -81,7 +87,9 @@ export async function getLatestPosts(limit = 5): Promise<PostListItem[]> {
 export async function searchPosts(q: string): Promise<PostListItem[]> {
   const term = `%${q}%`;
   const { rows } = await pool.query(
-    `select slug, title, excerpt, cover_image, to_char(date,'YYYY-MM-DD') as date
+    `select slug, title, excerpt,
+            coalesce(cover_image, cover_url) as cover_image,
+            to_char(date,'YYYY-MM-DD') as date
      from posts
      where status = 'publicado'
        and (title ilike $1 or excerpt ilike $1 or content ilike $1)
@@ -94,7 +102,9 @@ export async function searchPosts(q: string): Promise<PostListItem[]> {
 // Posts por categoria
 export async function getPostsByCategory(cat: string): Promise<PostListItem[]> {
   const { rows } = await pool.query(
-    `select slug, title, excerpt, cover_image, to_char(date,'YYYY-MM-DD') as date
+    `select slug, title, excerpt,
+            coalesce(cover_image, cover_url) as cover_image,
+            to_char(date,'YYYY-MM-DD') as date
      from posts
      where status = 'publicado'
        and $1 = any(categories)
@@ -107,7 +117,9 @@ export async function getPostsByCategory(cat: string): Promise<PostListItem[]> {
 // Posts por tag
 export async function getPostsByTag(tag: string): Promise<PostListItem[]> {
   const { rows } = await pool.query(
-    `select slug, title, excerpt, cover_image, to_char(date,'YYYY-MM-DD') as date
+    `select slug, title, excerpt,
+            coalesce(cover_image, cover_url) as cover_image,
+            to_char(date,'YYYY-MM-DD') as date
      from posts
      where status = 'publicado'
        and $1 = any(tags)

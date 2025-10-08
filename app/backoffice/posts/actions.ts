@@ -30,21 +30,26 @@ export async function createPost(formData: FormData) {
   const status = (formData.get("status") as string) || "publicado";
 
   await pool.query(
-    `insert into posts
-     (slug, title, excerpt, content, date, cover_image, video_url, categories, tags, status)
-     values ($1,$2,$3,$4, coalesce($5::date, now()), $6,$7, $8::text[], $9::text[], $10)
-     on conflict (slug) do update set
-       title=excluded.title,
-       excerpt=excluded.excerpt,
-       content=excluded.content,
-       date=excluded.date,
-       cover_image=excluded.cover_image,
-       video_url=excluded.video_url,
-       categories=excluded.categories,
-       tags=excluded.tags,
-       status=excluded.status`,
-    [slug, title, excerpt, content, date, cover, video, categories, tags, status]
-  );
+  `insert into posts
+   (slug, title, excerpt, content, date,
+    cover_image, cover_url,
+    video_url, categories, tags, status)
+   values ($1,$2,$3,$4, coalesce($5::date, now()),
+           $6, $6,
+           $7, $8::text[], $9::text[], $10)
+   on conflict (slug) do update set
+     title=excluded.title,
+     excerpt=excluded.excerpt,
+     content=excluded.content,
+     date=excluded.date,
+     cover_image=excluded.cover_image,
+     cover_url=excluded.cover_url,
+     video_url=excluded.video_url,
+     categories=excluded.categories,
+     tags=excluded.tags,
+     status=excluded.status`,
+  [slug, title, excerpt, content, date, cover, video, categories, tags, status]
+);
 
   return { ok: true, slug };
 }
