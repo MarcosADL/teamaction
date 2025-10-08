@@ -1,3 +1,4 @@
+// app/login/page.tsx
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import LoginForm from "./LoginForm";
@@ -17,6 +18,7 @@ export default async function LoginPage({
     const s = await getSession();
     if (s.authenticated) redirect(next);
   } catch {}
+
   return <LoginForm nextPath={next} />;
 }
 

@@ -9,16 +9,16 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Fallback: se já houver sessão no browser, vai já embora
+  // Fallback: se já houver sessão ativa, redireciona
   useEffect(() => {
-    let alive = true;
+    let active = true;
     (async () => {
       const { data } = await supabase.auth.getSession();
-      if (!alive) return;
+      if (!active) return;
       if (data.session) window.location.assign(nextPath);
     })();
     return () => {
-      alive = false;
+      active = false;
     };
   }, [nextPath]);
 
@@ -33,7 +33,7 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
       });
       if (error) throw new Error(error.message);
       setMsg("Sessão iniciada!");
-      window.location.assign(nextPath); // nova request → cookies SSR
+      window.location.assign(nextPath);
     } catch (err: any) {
       setMsg(`Erro: ${err?.message ?? "Falha ao autenticar."}`);
     } finally {
