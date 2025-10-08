@@ -1,26 +1,28 @@
-// app/categoria/[categoria]/page.tsx
+// app/categoria/page.tsx
 import Link from "next/link";
-import { getPostsByCategory, type PostListItem } from "@/data/posts";
+import { getCategoriesWithCounts } from "@/data/posts";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
-export default async function CategoriaPage({ params }: { params: { categoria: string } }) {
-  const cat = decodeURIComponent(params.categoria ?? "");
-  const posts: PostListItem[] = await getPostsByCategory(cat);
+export default async function CategoriesPage() {
+  const cats = await getCategoriesWithCounts();
 
   return (
-    <main className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-4">Categoria: {cat}</h1>
-      {posts.length === 0 ? (
-        <p>Não foram encontrados artigos nesta categoria.</p>
+    <main className="mx-auto max-w-4xl px-4 py-10 space-y-6">
+      <h1 className="text-3xl font-bold">Categorias</h1>
+      {cats.length === 0 ? (
+        <p className="opacity-80">Ainda não há categorias.</p>
       ) : (
-        <ul className="space-y-3">
-          {posts.map((p) => (
-            <li key={p.slug} className="border rounded p-3">
-              <Link href={`/blog/${p.slug}`} className="text-xl font-semibold underline">
-                {p.title}
+        <ul className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {cats.map((c) => (
+            <li key={c.category} className="rounded border px-3 py-2">
+              <Link
+                href={`/categoria/${encodeURIComponent(c.category)}`}
+                className="hover:underline"
+              >
+                {c.category}
               </Link>
-              {p.excerpt && <p className="mt-2 text-sm">{p.excerpt}</p>}
+              <span className="ml-2 text-xs opacity-70">({c.count})</span>
             </li>
           ))}
         </ul>

@@ -69,3 +69,25 @@ function toListItem(p: Post): PostListItem {
     categories: p.categories || [],
   };
 }
+export type TagCount = { tag: string; count: number };
+export type CategoryCount = { category: string; count: number };
+
+export async function getTagsWithCounts(): Promise<TagCount[]> {
+  const map = new Map<string, number>();
+  for (const p of onlyPublic(ALL)) {
+    for (const t of p.tags || []) map.set(t, (map.get(t) ?? 0) + 1);
+  }
+  return Array.from(map.entries())
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}
+
+export async function getCategoriesWithCounts(): Promise<CategoryCount[]> {
+  const map = new Map<string, number>();
+  for (const p of onlyPublic(ALL)) {
+    for (const c of p.categories || []) map.set(c, (map.get(c) ?? 0) + 1);
+  }
+  return Array.from(map.entries())
+    .map(([category, count]) => ({ category, count }))
+    .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
+}
