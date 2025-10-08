@@ -1,4 +1,3 @@
-// app/backoffice/layout.tsx
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
@@ -15,6 +14,7 @@ export default async function BackofficeLayout({
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Em RSC só precisamos de ler cookies; o middleware trata do refresh
       cookies: {
         get(name: string) {
           return cookieStore.get(name)?.value;
@@ -24,16 +24,15 @@ export default async function BackofficeLayout({
   );
 
   const { data: { session } } = await supabase.auth.getSession();
-
   if (!session) {
     redirect("/login?next=/backoffice");
   }
 
+  // (opcional) role admin
   const user = session.user;
   const isAdmin =
     (user.app_metadata?.roles as string[] | undefined)?.includes("admin") ||
     user.user_metadata?.role === "admin";
-
   if (!isAdmin) {
     redirect("/login?next=/backoffice");
   }
