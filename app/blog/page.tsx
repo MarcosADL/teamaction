@@ -1,25 +1,22 @@
-// app/blog/page.tsx
 import Link from "next/link";
 import { getPosts, searchPosts, type PostListItem } from "@/data/posts";
 
 export const revalidate = 60;
 export const runtime = "nodejs";
 
-type SearchParams = { q?: string };
+type SP = { q?: string };
 
 export default async function BlogPage({
   searchParams,
-}: {
-  searchParams?: SearchParams;
-}) {
+}: { searchParams?: SP | Promise<SP> }) {
   try {
-    const q = (searchParams?.q ?? "").trim();
-    const posts: PostListItem[] =
-      q.length > 0 ? await searchPosts(q) : await getPosts();
+    const sp = (await searchParams) || {};
+    const q = (sp.q ?? "").trim();
+    const posts: PostListItem[] = q ? await searchPosts(q) : await getPosts();
 
-    if (!posts || posts.length === 0) {
+    if (!posts?.length) {
       return (
-        <main className="mx-auto max-w-5xl px-4 py-10 space-y-6">
+        <main className="mx-auto max-w-5xl px-4 py-10">
           <h1 className="text-3xl font-bold">Blog</h1>
           <p className="opacity-80">Ainda não há artigos.</p>
         </main>
@@ -47,11 +44,9 @@ export default async function BlogPage({
       </main>
     );
   } catch {
-    // fallback simpático em produção
     return (
-      <main className="mx-auto max-w-5xl px-4 py-20 text-center space-y-4">
+      <main className="mx-auto max-w-5xl px-4 py-20 text-center">
         <h1 className="text-2xl font-semibold">Ocorreu um erro no Blog</h1>
-        <p className="opacity-80 text-sm">Tenta voltar ao início.</p>
         <Link href="/" className="underline">Voltar ao início</Link>
       </main>
     );

@@ -1,4 +1,3 @@
-// app/login/page.tsx
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import LoginForm from "./LoginForm";
@@ -6,14 +5,18 @@ import LoginForm from "./LoginForm";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+type SP = { next?: string };
+
 export default async function LoginPage({
   searchParams,
-}: { searchParams?: { next?: string } }) {
-  const next = sanitizeNext(searchParams?.next);
+}: { searchParams?: SP | Promise<SP> }) {
+  const sp = (await searchParams) || {};
+  const next = sanitizeNext(sp.next);
 
-  const s = await getSession();            // NÃO deve lançar
-  if (s.authenticated) redirect(next);     // já logado? segue
-
+  try {
+    const s = await getSession();
+    if (s.authenticated) redirect(next);
+  } catch {}
   return <LoginForm nextPath={next} />;
 }
 
