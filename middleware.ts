@@ -1,46 +1,34 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
 
-const COOKIE = "session";
-const SECRET = new TextEncoder().encode(
-  process.env.APP_SECRET || process.env.NEXTAUTH_SECRET || "dev-secret"
-);
+// Alguns SDKs do Supabase colocam cookies com nomes ligeiramente diferentes.
+// Regra segura: aceitar "sb-access-token" ou qualquer cookie que pareça ser de auth do Supabase.
+function hasSupabaseSessionCookie(req: NextRequest) {
+  const cookies = req.cookies.getAll()?.map(c => c.name) || [];
+  return cookies.some((name) =>
+    name === "sb-access-token" ||
+    name === "sb-refresh-token" ||
+    /^sb-.*-auth-token$/.test(name) // variantes antigas
+  );
+}
 
-export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+export function middleware(req: NextRequest) {
+  const { pathname, search } = req.nextUrl;
 
-  // Proteger rotas do Backoffice (apenas admins)
   if (pathname.startsWith("/backoffice")) {
-    const token = req.cookies.get(COOKIE)?.value;
-
-    // Se não houver sessão → mandar para /login?next=<path>
-    if (!token) {
+    // Se não tiver sessão do Supabase → redireciona para login
+    if (!hasSupabaseSessionCookie(req)) {
       const url = new URL("/login", req.url);
-      url.searchParams.set("next", pathname);
+      // preserva o destino para voltar depois do login
+      url.searchParams.set("next", pathname + (search || ""));
       return NextResponse.redirect(url);
     }
-
-    // Validar token e role
-    try {
-      const { payload } = await jwtVerify(token, SECRET);
-      if (payload.role !== "admin") {
-        // Tem sessão mas não é admin → homepage (ou outra página pública)
-        return NextResponse.redirect(new URL("/", req.url));
-      }
-    } catch {
-      // Token inválido/expirado → forçar login
-      const url = new URL("/login", req.url);
-      url.searchParams.set("next", pathname);
-      return NextResponse.redirect(url);
-    }
+    // Se tiver sessão, deixamos passar: o role "admin" será verificado no server (requireAdmin()).
   }
 
-  // default allow
   return NextResponse.next();
 }
 
-// Define quais caminhos passam pelo middleware
 export const config = {
   matcher: ["/backoffice/:path*"],
 };

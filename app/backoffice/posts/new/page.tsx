@@ -1,8 +1,8 @@
 // app/backoffice/posts/new/page.tsx
-'use client';
+"use client";
 
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/i;
 const IMG_RE = /\.(avif|jpe?g|png|webp|gif|svg)$/i;
@@ -10,7 +10,7 @@ const IMG_RE = /\.(avif|jpe?g|png|webp|gif|svg)$/i;
 function isHttpUrl(u: string) {
   try {
     const url = new URL(u);
-    return url.protocol === 'http:' || url.protocol === 'https:';
+    return url.protocol === "http:" || url.protocol === "https:";
   } catch {
     return false;
   }
@@ -19,76 +19,74 @@ function isHttpUrl(u: string) {
 export default function NewPostPage() {
   const router = useRouter();
 
-  const [title, setTitle] = useState('');
-  const [excerpt, setExcerpt] = useState('');
-  const [content, setContent] = useState('');
-  const [date, setDate] = useState('');
-  const [categories, setCategories] = useState('');
-  const [tags, setTags] = useState('');
-  const [coverImage, setCoverImage] = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [status, setStatus] = useState<'publicado' | 'rascunho'>('publicado');
+  const [title, setTitle] = useState("");
+  const [excerpt, setExcerpt] = useState("");
+  const [content, setContent] = useState("");
+  const [date, setDate] = useState("");
+  const [categories, setCategories] = useState("");
+  const [tags, setTags] = useState("");
+  const [coverImage, setCoverImage] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [status, setStatus] = useState<"publicado" | "rascunho">("publicado");
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState('');
+  const [err, setErr] = useState("");
 
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
-    if (!title.trim()) e.title = 'Obrigatório.';
-    if (!content.trim()) e.content = 'Obrigatório.';
-    if (date && !DATE_RE.test(date)) e.date = 'Formato: YYYY-MM-DD.';
+    if (!title.trim()) e.title = "Obrigatório.";
+    if (!content.trim()) e.content = "Obrigatório.";
+    if (date && !DATE_RE.test(date)) e.date = "Formato: YYYY-MM-DD.";
     if (
       coverImage &&
-      !(IMG_RE.test(coverImage) || coverImage.startsWith('/') || isHttpUrl(coverImage))
+      !(IMG_RE.test(coverImage) || coverImage.startsWith("/") || isHttpUrl(coverImage))
     )
-      e.coverImage = 'URL de imagem (.png, .jpg, .webp, .svg…) ou caminho /local.';
-    if (videoUrl && !isHttpUrl(videoUrl)) e.videoUrl = 'URL inválido.';
+      e.coverImage = "URL de imagem (.png, .jpg, .webp, .svg…) ou caminho /local.";
+    if (videoUrl && !isHttpUrl(videoUrl)) e.videoUrl = "URL inválido.";
     return e;
   }, [title, content, date, coverImage, videoUrl]);
 
   const disabled = loading || Object.keys(errors).length > 0;
 
   const toArray = (s: string) =>
-    String(s || '')
-      .split(',')
+    String(s || "")
+      .split(",")
       .map((x) => x.trim())
       .filter(Boolean);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (disabled) return;
-    setErr('');
+    setErr("");
     setLoading(true);
 
     try {
-      // ⚠️ estes nomes batem certo com lib/posts.ts → createPost()
       const payload = {
         title: title.trim(),
         excerpt: excerpt.trim() || undefined,
         content: content.trim(),
-        date: date || undefined,             // YYYY-MM-DD
-        coverImage: coverImage || undefined, // <= nome que o createPost usa
+        date: date || undefined, // YYYY-MM-DD
+        coverImage: coverImage || undefined,
         videoUrl: videoUrl || undefined,
         categories: toArray(categories),
         tags: toArray(tags),
-        status,                              // 'publicado' | 'rascunho'
+        status, // 'publicado' | 'rascunho' (o servidor normaliza)
       };
 
-      // ⚠️ rota do backoffice (JSON file storage), não a rota da BD
-      const res = await fetch('/api/backoffice/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || json?.error) {
+      if (!res.ok || (json && json.error)) {
         throw new Error(json?.error || `Falhou a criação (${res.status})`);
       }
 
-      router.replace('/backoffice/posts');
+      router.replace("/backoffice/posts");
       router.refresh();
     } catch (e: any) {
-      setErr(e?.message || 'Erro inesperado');
+      setErr(e?.message || "Erro inesperado");
     } finally {
       setLoading(false);
     }
@@ -153,7 +151,9 @@ export default function NewPostPage() {
               placeholder="/og/post-og.svg ou https://…"
               aria-invalid={!!errors.coverImage}
             />
-            {errors.coverImage && <p className="mt-1 text-xs text-red-600">{errors.coverImage}</p>}
+            {errors.coverImage && (
+              <p className="mt-1 text-xs text-red-600">{errors.coverImage}</p>
+            )}
           </div>
         </div>
 
@@ -193,7 +193,7 @@ export default function NewPostPage() {
           <select
             className="rounded-md border px-2 py-2"
             value={status}
-            onChange={(e) => setStatus(e.target.value as 'publicado' | 'rascunho')}
+            onChange={(e) => setStatus(e.target.value as "publicado" | "rascunho")}
           >
             <option value="publicado">Publicado</option>
             <option value="rascunho">Rascunho</option>
@@ -207,7 +207,7 @@ export default function NewPostPage() {
           disabled={disabled}
           className="rounded-md border px-4 py-2 hover:bg-muted/40 disabled:opacity-60"
         >
-          {loading ? 'A guardar…' : 'Guardar'}
+          {loading ? "A guardar…" : "Guardar"}
         </button>
       </form>
     </main>

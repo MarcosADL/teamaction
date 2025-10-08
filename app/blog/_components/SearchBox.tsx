@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Button from "@/components/ui/button";
+import Button from "@/components/ui/button"; // ✅ corrigido
 
 export default function SearchBox() {
   const router = useRouter();
@@ -19,7 +19,7 @@ export default function SearchBox() {
     const value = q.trim();
     if (value) params.set("q", value);
     else params.delete("q");
-    router.replace(`/blog?${params.toString()}`);
+    router.push(`/blog?${params.toString()}`);
   }
 
   return (

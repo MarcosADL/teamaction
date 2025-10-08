@@ -1,9 +1,14 @@
+// app/backoffice/page.tsx
 import Link from "next/link";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function BackofficeHome() {
+  // ✅ Garante que só admins veem esta página
+  await requireAdmin();
+
   return (
     <main>
       <h1 className="mb-6 text-2xl font-semibold">Gestão (Backoffice)</h1>
@@ -20,7 +25,7 @@ export default async function BackofficeHome() {
           Novo Post
         </Link>
         <Link
-          href="/backoffice"
+          href="/backoffice/posts"
           className="rounded-md border px-3 py-1.5 hover:bg-muted/40"
         >
           Listar Posts

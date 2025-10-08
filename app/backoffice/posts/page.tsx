@@ -1,6 +1,7 @@
 // app/backoffice/posts/page.tsx
 import Link from "next/link";
 import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import Filters from "./Filters";
 
 export const runtime = "nodejs";
@@ -8,18 +9,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
-// continua a existir (é usada no <form action=.../>)
-export async function deletePostAction(id: string) {
-  "use server";
-  const { deletePost } = await import("@/lib/posts");
-  const { revalidatePath } = await import("next/cache");
-  await deletePost(id);
-  revalidatePath("/backoffice/posts");
-}
-
-type SearchParams = { [key: string]: string | string[] | undefined };
-type PageProps = { searchParams: Promise<SearchParams> };
-
+// ===== helpers =====
 const take1 = (v: string | string[] | undefined) =>
   Array.isArray(v) ? v[0] : v ?? "";
 
@@ -51,9 +41,27 @@ type AdminPost = {
   excerpt: string | null;
   date: string | null;
   coverImage: string | null;
-  status: string; // published|draft (ou 'publicado' legado)
+  status: "published" | "draft";
 };
 
+// ===== Server Action: apagar post via API interna =====
+export async function deletePostAction(id: string) {
+  "use server";
+  // construir base URL robusta para produção/preview/local
+  const h = headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const base = `${proto}://${host}`;
+
+  const res = await fetch(`${base}/api/posts/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Falhou a apagar: ${res.status} ${txt}`);
+  }
+  revalidatePath("/backoffice/posts");
+}
+
+// ===== Dados para a lista (busca tudo e filtramos aqui) =====
 async function getAdminPosts(): Promise<AdminPost[]> {
   // construir base URL robusta para produção/preview/local
   const h = headers();
@@ -61,21 +69,51 @@ async function getAdminPosts(): Promise<AdminPost[]> {
   const proto = h.get("x-forwarded-proto") ?? "http";
   const base = `${proto}://${host}`;
 
-  const res = await fetch(`${base}/api/backoffice/posts`, { cache: "no-store" });
+  // pedir bastante para cobrir o BO (ajusta se necessário)
+  const url = `${base}/api/posts?page=1&pageSize=500`;
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(`Falhou a listar posts: ${res.status} ${txt}`);
   }
-  const data = (await res.json()) as { ok: boolean; items: AdminPost[] };
-  return data.items ?? [];
+
+  const data = (await res.json()) as {
+    ok: boolean;
+    items: Array<{
+      id: string;
+      slug: string;
+      title: string;
+      excerpt: string | null;
+      date: string | null;
+      image_url?: string | null;
+      cover_image?: string | null; // compat se vier com outro nome
+      status: string;
+    }>;
+  };
+
+  const items = data.items ?? [];
+  // normalizar para o shape usado no BO
+  const mapped: AdminPost[] = items.map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    title: p.title,
+    excerpt: p.excerpt ?? null,
+    date: p.date ?? null,
+    coverImage: (p.image_url ?? p.cover_image ?? null) as string | null,
+    status: normalizeStatus(p.status),
+  }));
+
+  return mapped;
 }
 
-export default async function PostsAdminPage({ searchParams }: PageProps) {
-  const sp = await searchParams;
+// ===== Página =====
+type SearchParams = { [key: string]: string | string[] | undefined };
+type PageProps = { searchParams?: SearchParams };
 
+export default async function PostsAdminPage({ searchParams }: PageProps) {
   // filtros
-  const q = take1(sp.q);
-  const statusFilter = parseStatusParam(take1(sp.status));
+  const q = take1(searchParams?.q);
+  const statusFilter = parseStatusParam(take1(searchParams?.status));
 
   // dados (via API interna REST)
   const posts = await getAdminPosts();
@@ -85,28 +123,16 @@ export default async function PostsAdminPage({ searchParams }: PageProps) {
     const ad = a.date ? new Date(a.date).getTime() : -Infinity;
     const bd = b.date ? new Date(b.date).getTime() : -Infinity;
     return bd - ad;
-    // se ambas null, mantém ordem
   });
 
   // filtro (estado + pesquisa)
   const filtered = ordered.filter((p) => {
-    const st = normalizeStatus(p.status);
-
-    if (statusFilter === "published" && st !== "published") return false;
-    if (statusFilter === "draft" && st !== "draft") return false;
+    if (statusFilter === "published" && p.status !== "published") return false;
+    if (statusFilter === "draft" && p.status !== "draft") return false;
 
     if (!q) return true;
     const needle = norm(q);
-    const hay = norm(
-      [
-        p.title,
-        p.slug,
-        p.excerpt ?? "",
-        // sem content aqui (não vem neste GET; é BO list)
-      ]
-        .filter(Boolean)
-        .join(" ")
-    );
+    const hay = norm([p.title, p.slug, p.excerpt ?? ""].filter(Boolean).join(" "));
     return hay.includes(needle);
   });
 
@@ -144,34 +170,31 @@ export default async function PostsAdminPage({ searchParams }: PageProps) {
       />
 
       <ul className="space-y-2">
-        {filtered.map((p) => {
-          const st = normalizeStatus(p.status);
-          return (
-            <li key={p.id} className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{p.title}</span>
-              <StatusBadge status={st} />
-              {p.date ? (
-                <span className="text-gray-500 text-sm">— {formatDate(p.date)}</span>
-              ) : null}
+        {filtered.map((p) => (
+          <li key={p.id} className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{p.title}</span>
+            <StatusBadge status={p.status} />
+            {p.date ? (
+              <span className="text-gray-500 text-sm">— {formatDate(p.date)}</span>
+            ) : null}
 
-              <span className="ml-2 flex items-center gap-3">
-                {/* se já tiveres a página de edição */}
-                <Link href={`/backoffice/posts/${p.id}`} className="underline">
-                  Editar
-                </Link>
-                <form action={deletePostAction.bind(null, p.id)} className="inline">
-                  <button type="submit" className="text-red-600 hover:underline">
-                    Remover
-                  </button>
-                </form>
-              </span>
+            <span className="ml-2 flex items-center gap-3">
+              {/* ajusta o path de edição conforme a tua página */}
+              <Link href={`/backoffice/posts/${p.id}`} className="underline">
+                Editar
+              </Link>
+              <form action={deletePostAction.bind(null, p.id)} className="inline">
+                <button type="submit" className="text-red-600 hover:underline">
+                  Remover
+                </button>
+              </form>
+            </span>
 
-              {p.excerpt ? (
-                <p className="w-full text-gray-600 text-sm mt-0.5">{p.excerpt}</p>
-              ) : null}
-            </li>
-          );
-        })}
+            {p.excerpt ? (
+              <p className="w-full text-gray-600 text-sm mt-0.5">{p.excerpt}</p>
+            ) : null}
+          </li>
+        ))}
 
         {filtered.length === 0 && (
           <li className="text-gray-500">Sem resultados para os filtros aplicados.</li>

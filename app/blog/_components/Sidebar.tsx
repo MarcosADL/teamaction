@@ -1,5 +1,6 @@
+// app/blog/_components/Sidebar.tsx
 import Link from "next/link";
-import type { CountItem, PostListItem } from "@/data/posts";
+import type { CountItem, PostListItem } from "@/lib/posts";
 import CategoryBadge from "@/components/category-badge";
 
 type Props = {
@@ -20,7 +21,7 @@ export default function Sidebar({ cats, tags, latest }: Props) {
             <CategoryBadge
               key={c.name}
               name={c.name}
-              href={`/blog?categoria=${encodeURIComponent(c.name)}`}
+              href={`/blog?q=${encodeURIComponent(c.name)}`}
             />
           ))}
         </div>

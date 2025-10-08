@@ -1,3 +1,4 @@
+// app/blog/layout.tsx
 import type { Metadata } from "next";
 import Sidebar from "./_components/Sidebar";
 import {
@@ -6,7 +7,7 @@ import {
   getLatestPosts,
   type CountItem,
   type PostListItem,
-} from "@/data/posts";
+} from "@/lib/posts";
 
 export const metadata: Metadata = {
   title: "Blog — TeamAction",

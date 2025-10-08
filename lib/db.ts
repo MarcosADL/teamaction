@@ -2,12 +2,12 @@
 import { Pool } from "pg";
 
 const conn = process.env.SUPABASE_DB_URL;
-if (!conn) console.warn("[DB] SUPABASE_DB_URL não definida");
+if (!conn) console.warn("[DB] ⚠️ SUPABASE_DB_URL não definida");
 
 export const pool = new Pool({
-  connectionString: conn,             // inclui ?sslmode=require
-  ssl: { rejectUnauthorized: false }, // evita self-signed
-  connectionTimeoutMillis: 5000,
-  idleTimeoutMillis: 10000,
-  max: 5,
+  connectionString: conn,
+  ssl: conn?.includes("sslmode") ? undefined : { rejectUnauthorized: false },
+  connectionTimeoutMillis: 8000,
+  idleTimeoutMillis: 15000,
+  max: 10,
 });

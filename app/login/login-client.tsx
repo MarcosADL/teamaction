@@ -1,41 +1,40 @@
-// app/login/login-client.tsx
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase-browser';
 
 export default function LoginClient() {
   const router = useRouter();
 
-  const [next, setNext] = useState("/");
+  const [next, setNext] = useState('/');
   useEffect(() => {
     try {
       const sp = new URLSearchParams(window.location.search);
-      setNext(sp.get("next") ?? "/");
+      setNext(sp.get('next') ?? '/');
     } catch {}
   }, []);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [err, setErr] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setErr("");
+    setErr('');
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.ok) throw new Error(data?.error || "Falha no login");
-      router.replace(next || "/");
+      if (error) throw new Error(error.message);
+
+      router.replace(next || '/');
       router.refresh();
     } catch (e: any) {
-      setErr(e?.message || "Erro inesperado");
+      setErr(e?.message || 'Erro inesperado');
     } finally {
       setLoading(false);
     }
@@ -76,7 +75,7 @@ export default function LoginClient() {
           disabled={loading}
           className="rounded-md border px-4 py-2 hover:bg-muted/40 disabled:opacity-60"
         >
-          {loading ? "A entrar…" : "Entrar"}
+          {loading ? 'A entrar…' : 'Entrar'}
         </button>
       </form>
     </main>

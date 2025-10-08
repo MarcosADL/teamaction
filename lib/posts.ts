@@ -1,350 +1,455 @@
-// lib/posts.ts — versão BD (Supabase/Postgres)
-import { pool } from "@/lib/db";
+// lib/posts.ts
+// Helpers unificados: Blog (via /api/posts) + Backoffice (via Supabase REST)
 
-// ----------------- Tipos -----------------
-export type Post = {
+import { headers } from "next/headers";
+
+/* =========================
+ * Tipos partilhados
+ * ========================= */
+export type PostListItem = {
   id: string;
   slug: string;
   title: string;
-  excerpt?: string;
-  content: string;
-  date?: string; // YYYY-MM-DD
-  categories?: string[];
-  tags?: string[];
-  coverImage?: string;
-  status?: "rascunho" | "publicado";
-  author?: string;
-  readingMinutes?: number;
-  videoUrl?: string;
+  excerpt: string | null;
+  date: string | null; // YYYY-MM-DD
+  categories: string[] | null;
+  tags: string[] | null;
+  coverImage: string | null;
+  status: "published" | "draft";
 };
 
-export type PostListItem = {
-  slug: string;
-  title: string;
-  excerpt?: string;
-  date?: string;
-  categories?: string[];
-  tags?: string[];
-  coverImage?: string;
+export type PostFull = PostListItem & {
+  content: string | null;
+  videoUrl: string | null;
 };
 
 export type CountItem = { name: string; count: number };
 
-// ----------------- Utils -----------------
-function slugify(s: string) {
-  return (s || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+export type AdminPost = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  content?: string | null;
+  date: string | null; // YYYY-MM-DD
+  categories?: string[] | null;
+  tags?: string[] | null;
+  status: "published" | "draft";
+  coverImage?: string | null;
+};
+
+/* =========================
+ * Utils
+ * ========================= */
+function normStatus(s: any): "published" | "draft" {
+  const v = String(s ?? "").toLowerCase().trim();
+  if (v === "published" || v === "publicado") return "published";
+  return "draft";
 }
 
-// aceita apenas imagens / thumbs youtube
-function cleanUrl(u?: string): string | undefined {
-  const t = (u ?? "").trim();
-  if (!t || t === "/" || t.toLowerCase() === "about:blank") return undefined;
+function baseUrlFromHeaders(): string {
+  // Preferir headers do Next (server) e fallback a NEXT_PUBLIC_SITE_URL
+  const h = headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  if (host) return `${proto}://${host}`;
+  const fallback =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") || "http://localhost:3000";
+  return fallback;
+}
 
-  const isRelative = t.startsWith("/");
-  const imageExt = /\.(avif|jpe?g|png|webp|gif|svg)$/i;
-
-  if (isRelative) return imageExt.test(t) ? t : undefined;
-
-  try {
-    const url = new URL(t);
-    const host = url.hostname.toLowerCase();
-    if (host === "i.ytimg.com") return t;
-    if (imageExt.test(url.pathname)) return t;
-    return undefined;
-  } catch {
-    return undefined;
+/* ============================================================
+ *  PARTE 1 — BLOG (usa a tua rota interna /api/posts - Postgres/pg)
+ * ============================================================ */
+async function fetchApi<T>(path: string): Promise<T> {
+  const base = baseUrlFromHeaders();
+  const res = await fetch(`${base}${path}`, { cache: "no-store" });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`GET ${path}: ${res.status} ${txt}`);
   }
+  return (await res.json()) as T;
 }
 
-// mapeia linha da BD -> Post (usamos nomes do teu modelo)
-function rowToPost(r: any): Post {
+// Lista total publicada (para paginação local)
+export async function getPosts(): Promise<PostListItem[]> {
+  type ApiRow = {
+    id: string;
+    slug: string;
+    title: string;
+    excerpt: string | null;
+    content?: string | null;
+    date: string | null;
+    categories: string[] | null;
+    tags: string[] | null;
+    status: string;
+    image_url?: string | null;
+    cover_image?: string | null;
+    video_url?: string | null;
+  };
+
+  const data = await fetchApi<{
+    ok: boolean;
+    total: number;
+    items: ApiRow[];
+  }>(`/api/posts?page=1&pageSize=1000&status=published`);
+
+  const rows = data.items ?? [];
+  return rows.map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    title: r.title,
+    excerpt: r.excerpt ?? null,
+    date: r.date ?? null,
+    categories: r.categories ?? [],
+    tags: r.tags ?? [],
+    coverImage: (r.image_url ?? r.cover_image ?? null) as string | null,
+    status: normStatus(r.status),
+  }));
+}
+
+// Pesquisa (título, excerpt, content, tags, categories)
+export async function searchPosts(q: string): Promise<PostListItem[]> {
+  const s = q.trim();
+  if (!s) return getPosts();
+  type ApiRow = {
+    id: string;
+    slug: string;
+    title: string;
+    excerpt: string | null;
+    content?: string | null;
+    date: string | null;
+    categories: string[] | null;
+    tags: string[] | null;
+    status: string;
+    image_url?: string | null;
+    cover_image?: string | null;
+    video_url?: string | null;
+  };
+
+  const data = await fetchApi<{
+    ok: boolean;
+    total: number;
+    items: ApiRow[];
+  }>(`/api/posts?q=${encodeURIComponent(s)}&page=1&pageSize=1000&status=published`);
+
+  const rows = data.items ?? [];
+  return rows.map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    title: r.title,
+    excerpt: r.excerpt ?? null,
+    date: r.date ?? null,
+    categories: r.categories ?? [],
+    tags: r.tags ?? [],
+    coverImage: (r.image_url ?? r.cover_image ?? null) as string | null,
+    status: normStatus(r.status),
+  }));
+}
+
+export async function getPostBySlug(slug: string): Promise<PostFull | null> {
+  type ApiRow = {
+    id: string;
+    slug: string;
+    title: string;
+    excerpt: string | null;
+    content: string | null;
+    date: string | null;
+    categories: string[] | null;
+    tags: string[] | null;
+    status: string;
+    image_url?: string | null;
+    cover_image?: string | null;
+    video_url?: string | null;
+  };
+
+  // Reutiliza o GET /api/posts?q=slug e filtra, ou criares rota por slug no futuro
+  const data = await fetchApi<{
+    ok: boolean;
+    total: number;
+    items: ApiRow[];
+  }>(`/api/posts?q=${encodeURIComponent(slug)}&page=1&pageSize=50&status=published`);
+
+  const r =
+    (data.items ?? []).find((x) => x.slug === slug && normStatus(x.status) === "published") ||
+    null;
+  if (!r) return null;
+
   return {
     id: r.id,
     slug: r.slug,
     title: r.title,
-    excerpt: r.excerpt ?? undefined,
-    content: r.content ?? "",
-    date: r.date ? String(r.date) : undefined,
-    categories: (r.categories ?? []) as string[],
-    tags: (r.tags ?? []) as string[],
-    coverImage: cleanUrl(r.image_url ?? undefined),
-    status: (r.status as "publicado" | "rascunho") ?? "publicado",
-    author: r.author ?? undefined,
-    readingMinutes: r.reading_minutes ?? undefined,
-    videoUrl: (r.video_url ?? "").trim() || undefined,
+    excerpt: r.excerpt ?? null,
+    content: r.content ?? null,
+    date: r.date ?? null,
+    categories: r.categories ?? [],
+    tags: r.tags ?? [],
+    coverImage: (r.image_url ?? r.cover_image ?? null) as string | null,
+    videoUrl: (r.video_url ?? null) as string | null,
+    status: normStatus(r.status),
   };
 }
 
-// ----------------- Leitura -----------------
-export async function getAllPosts(): Promise<Post[]> {
-  const { rows } = await pool.query(
-    `select id, slug, title, excerpt, content, date, categories, tags,
-            image_url, video_url, status, author, reading_minutes
-     from public.posts
-     order by coalesce(date, created_at) desc nulls last, created_at desc`
-  );
-  return rows.map(rowToPost);
-}
-
-export async function getPostById(id: string) {
-  const { rows } = await pool.query(
-    `select id, slug, title, excerpt, content, date, categories, tags,
-            image_url, video_url, status, author, reading_minutes
-     from public.posts
-     where id = $1
-     limit 1`,
-    [id]
-  );
-  return rows[0] ? rowToPost(rows[0]) : undefined;
-}
-
-export async function getPosts(): Promise<PostListItem[]> {
-  const { rows } = await pool.query(
-    `select slug, title, excerpt, date, categories, tags, image_url
-     from public.posts
-     where coalesce(status,'publicado') = 'publicado'
-     order by coalesce(date, created_at) desc nulls last, created_at desc`
-  );
-  return rows.map((r) => ({
-    slug: r.slug,
-    title: r.title,
-    excerpt: r.excerpt ?? undefined,
-    date: r.date ? String(r.date) : undefined,
-    categories: (r.categories ?? []) as string[],
-    tags: (r.tags ?? []) as string[],
-    coverImage: cleanUrl(r.image_url ?? undefined),
-  }));
-}
-
-export async function searchPosts(q: string): Promise<PostListItem[]> {
-  const s = `%${q}%`;
-  const { rows } = await pool.query(
-    `select slug, title, excerpt, date, categories, tags, image_url
-     from public.posts
-     where coalesce(status,'publicado') = 'publicado'
-       and (
-         title ilike $1
-         or excerpt ilike $1
-         or array_to_string(tags, ',') ilike $1
-         or array_to_string(categories, ',') ilike $1
-       )
-     order by coalesce(date, created_at) desc nulls last, created_at desc`,
-    [s]
-  );
-  return rows.map((r) => ({
-    slug: r.slug,
-    title: r.title,
-    excerpt: r.excerpt ?? undefined,
-    date: r.date ? String(r.date) : undefined,
-    categories: (r.categories ?? []) as string[],
-    tags: (r.tags ?? []) as string[],
-    coverImage: cleanUrl(r.image_url ?? undefined),
-  }));
-}
-
-export async function getPostBySlug(slug: string): Promise<Post | undefined> {
-  const { rows } = await pool.query(
-    `select id, slug, title, excerpt, content, date, categories, tags,
-            image_url, video_url, status, author, reading_minutes
-     from public.posts
-     where slug = $1
-       and coalesce(status,'publicado') = 'publicado'
-     limit 1`,
-    [slug]
-  );
-  return rows[0] ? rowToPost(rows[0]) : undefined;
-}
-
-export async function getLatestPosts(n: number): Promise<PostListItem[]> {
-  const { rows } = await pool.query(
-    `select slug, title, excerpt, date, categories, tags, image_url
-     from public.posts
-     where coalesce(status,'publicado') = 'publicado'
-     order by coalesce(date, created_at) desc nulls last, created_at desc
-     limit $1`,
-    [n]
-  );
-  return rows.map((r) => ({
-    slug: r.slug,
-    title: r.title,
-    excerpt: r.excerpt ?? undefined,
-    date: r.date ? String(r.date) : undefined,
-    categories: (r.categories ?? []) as string[],
-    tags: (r.tags ?? []) as string[],
-    coverImage: cleanUrl(r.image_url ?? undefined),
-  }));
-}
-
+// Contagens de categorias/tags e últimos posts (para sidebar)
 export async function getCategoriesWithCounts(): Promise<CountItem[]> {
-  const { rows } = await pool.query(
-    `select lower(trim(unnest(categories))) as name, count(*)::int as count
-     from public.posts
-     where coalesce(status,'publicado') = 'publicado'
-     group by 1
-     order by 2 desc, 1 asc`
-  );
-  return rows;
-}
-
-export async function getPostsByCategory(category: string): Promise<PostListItem[]> {
-  const { rows } = await pool.query(
-    `select slug, title, excerpt, date, categories, tags, image_url
-     from public.posts
-     where coalesce(status,'publicado') = 'publicado'
-       and exists (
-         select 1 from unnest(categories) c where lower(c) = lower($1)
-       )
-     order by coalesce(date, created_at) desc nulls last, created_at desc`,
-    [category]
-  );
-  return rows.map((r) => ({
-    slug: r.slug,
-    title: r.title,
-    excerpt: r.excerpt ?? undefined,
-    date: r.date ? String(r.date) : undefined,
-    categories: (r.categories ?? []) as string[],
-    tags: (r.tags ?? []) as string[],
-    coverImage: cleanUrl(r.image_url ?? undefined),
-  }));
+  const posts = await getPosts();
+  const map = new Map<string, number>();
+  for (const p of posts) {
+    for (const c of p.categories ?? []) {
+      const key = String(c);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+  }
+  return [...map.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
 export async function getTagsWithCounts(): Promise<CountItem[]> {
-  const { rows } = await pool.query(
-    `select lower(trim(unnest(tags))) as name, count(*)::int as count
-     from public.posts
-     where coalesce(status,'publicado') = 'publicado'
-     group by 1
-     order by 2 desc, 1 asc`
-  );
-  return rows;
+  const posts = await getPosts();
+  const map = new Map<string, number>();
+  for (const p of posts) {
+    for (const t of p.tags ?? []) {
+      const key = String(t);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+  }
+  return [...map.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-export async function getPostsByTag(tag: string): Promise<PostListItem[]> {
-  const { rows } = await pool.query(
-    `select slug, title, excerpt, date, categories, tags, image_url
-     from public.posts
-     where coalesce(status,'publicado') = 'publicado'
-       and exists (
-         select 1 from unnest(tags) t where lower(t) = lower($1)
-       )
-     order by coalesce(date, created_at) desc nulls last, created_at desc`,
-    [tag]
-  );
+export async function getLatestPosts(n: number): Promise<PostListItem[]> {
+  const posts = await getPosts();
+  return posts
+    .slice()
+    .sort((a, b) => {
+      const ad = a.date ? new Date(a.date).getTime() : -Infinity;
+      const bd = b.date ? new Date(b.date).getTime() : -Infinity;
+      return bd - ad;
+    })
+    .slice(0, Math.max(0, n));
+}
+
+/* ============================================================
+ *  PARTE 2 — BACKOFFICE (Supabase REST para CRUD direto)
+ * ============================================================ */
+
+const BASE = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+function ensureReadEnv() {
+  if (!BASE || !ANON) {
+    throw new Error("Faltam NEXT_PUBLIC_SUPABASE_URL e/ou NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+  }
+}
+function ensureWriteEnv() {
+  if (!BASE || !SERVICE) {
+    throw new Error("Faltam NEXT_PUBLIC_SUPABASE_URL e/ou SUPABASE_SERVICE_ROLE_KEY.");
+  }
+}
+
+async function restGet<T>(path: string, params: Record<string, string>) {
+  ensureReadEnv();
+  const qs = new URLSearchParams(params).toString();
+  const url = `${BASE}/rest/v1/${path}?${qs}`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: ANON,
+      Authorization: `Bearer ${ANON}`,
+      "Accept-Profile": "public",
+      "Content-Profile": "public",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`GET ${path}: ${res.status} ${txt}`);
+  }
+  return (await res.json()) as T;
+}
+
+async function restMutate<T>(
+  method: "DELETE" | "PATCH" | "POST",
+  path: string,
+  params: Record<string, string>,
+  body?: any
+) {
+  ensureWriteEnv();
+  const qs = new URLSearchParams(params).toString();
+  const url = `${BASE}/rest/v1/${path}?${qs}`;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      apikey: SERVICE,
+      Authorization: `Bearer ${SERVICE}`,
+      "Content-Type": "application/json",
+      "Accept-Profile": "public",
+      "Content-Profile": "public",
+      Prefer: "return=representation",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`${method} ${path}: ${res.status} ${txt}`);
+  }
+  return (await res.json().catch(() => null)) as T | null;
+}
+
+/* ------ LISTAR TODOS (BO) ------ */
+export async function getAllPosts(): Promise<AdminPost[]> {
+  type Row = {
+    id: string;
+    slug: string;
+    title: string;
+    excerpt: string | null;
+    summary: string | null;
+    content: string | null;
+    date: string | null;
+    categories: string[] | null;
+    tags: string[] | null;
+    status: string | null;
+    cover_image: string | null;
+    cover_url: string | null;
+  };
+
+  const rows = await restGet<Row[]>("posts", {
+    select:
+      "id,slug,title,excerpt,summary,content,date,categories,tags,status,cover_image,cover_url",
+    order: "date.desc",
+  });
+
   return rows.map((r) => ({
+    id: r.id,
     slug: r.slug,
     title: r.title,
-    excerpt: r.excerpt ?? undefined,
-    date: r.date ? String(r.date) : undefined,
-    categories: (r.categories ?? []) as string[],
-    tags: (r.tags ?? []) as string[],
-    coverImage: cleanUrl(r.image_url ?? undefined),
+    excerpt: r.excerpt ?? r.summary ?? null,
+    content: r.content ?? null,
+    date: r.date ?? null,
+    categories: r.categories ?? [],
+    tags: r.tags ?? [],
+    status: normStatus(r.status),
+    coverImage: r.cover_image ?? r.cover_url ?? null,
   }));
 }
 
-// -------------- CRUD (Backoffice) --------------
-export async function createPost(input: Omit<Post, "id" | "slug"> & { slug?: string }) {
-  const slug = input.slug ? slugify(input.slug) : slugify(input.title);
-
-  // slug único
-  const ex = await pool.query(`select 1 from public.posts where slug = $1 limit 1`, [slug]);
-  if (ex.rowCount) throw new Error("Slug já existe");
-
-  const params = [
-    slug,
-    input.title,
-    input.excerpt ?? null,
-    input.content ?? "",
-    input.date ?? null,
-    cleanUrl(input.coverImage) ?? null,
-    input.videoUrl ?? null,
-    (input.categories ?? []) as any,
-    (input.tags ?? []) as any,
-    (input.status ?? "publicado"),
-    input.author ?? null,
-    input.readingMinutes ?? null,
-  ];
-
-  const { rows } = await pool.query(
-    `insert into public.posts
-      (slug, title, excerpt, content, date, image_url, video_url,
-       categories, tags, status, author, reading_minutes)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-     returning id, slug, title, excerpt, content, date, categories, tags,
-               image_url, video_url, status, author, reading_minutes`,
-    params
-  );
-  return rowToPost(rows[0]);
-}
-
-export async function updatePost(id: string, patch: Partial<Post>) {
-  // se vier slug novo, validar unicidade
-  if (typeof patch.slug === "string" && patch.slug.trim()) {
-    const nextSlug = slugify(patch.slug);
-    const ex = await pool.query(
-      `select 1 from public.posts where slug = $1 and id <> $2 limit 1`,
-      [nextSlug, id]
-    );
-    if (ex.rowCount) throw new Error("Slug já existe");
-  }
-
-  // construir SET dinâmico
-  const set: string[] = [];
-  const vals: any[] = [];
-  const push = (sql: string, v: any) => {
-    vals.push(v);
-    set.push(`${sql} = $${vals.length}`);
+/* ------ OBTÉM POR ID (BO) ------ */
+export async function getPostById(id: string): Promise<AdminPost | null> {
+  type Row = {
+    id: string;
+    slug: string;
+    title: string;
+    excerpt: string | null;
+    summary: string | null;
+    content: string | null;
+    date: string | null;
+    categories: string[] | null;
+    tags: string[] | null;
+    status: string | null;
+    cover_image: string | null;
+    cover_url: string | null;
   };
 
-  if (patch.title !== undefined) push("title", patch.title);
-  if (patch.excerpt !== undefined) push("excerpt", patch.excerpt);
-  if (patch.content !== undefined) push("content", patch.content);
-  if (patch.date !== undefined) push("date", patch.date || null);
-  if (patch.coverImage !== undefined) push("image_url", cleanUrl(patch.coverImage) ?? null);
-  if (patch.videoUrl !== undefined) push("video_url", patch.videoUrl || null);
-  if (patch.categories !== undefined) push("categories", patch.categories ?? []);
-  if (patch.tags !== undefined) push("tags", patch.tags ?? []);
-  if (patch.status !== undefined) push("status", patch.status);
-  if (patch.author !== undefined) push("author", patch.author || null);
-  if (patch.readingMinutes !== undefined) push("reading_minutes", patch.readingMinutes ?? null);
-  if (patch.slug !== undefined) push("slug", slugify(patch.slug!));
+  const rows = await restGet<Row[]>("posts", {
+    select:
+      "id,slug,title,excerpt,summary,content,date,categories,tags,status,cover_image,cover_url",
+    id: `eq.${id}`,
+    limit: "1",
+  });
+  const r = rows[0];
+  if (!r) return null;
 
-  if (!set.length) {
-    const { rows } = await pool.query(
-      `select id, slug, title, excerpt, content, date, categories, tags,
-              image_url, video_url, status, author, reading_minutes
-       from public.posts where id = $1`,
-      [id]
-    );
-    if (!rows[0]) throw new Error("Post não encontrado");
-    return rowToPost(rows[0]);
+  return {
+    id: r.id,
+    slug: r.slug,
+    title: r.title,
+    excerpt: r.excerpt ?? r.summary ?? null,
+    content: r.content ?? null,
+    date: r.date ?? null,
+    categories: r.categories ?? [],
+    tags: r.tags ?? [],
+    status: normStatus(r.status),
+    coverImage: r.cover_image ?? r.cover_url ?? null,
+  };
+}
+
+/* ------ ATUALIZAR POR ID (BO) ------ */
+export async function updatePost(
+  id: string,
+  payload: Partial<{
+    slug: string;
+    title: string;
+    excerpt: string | null;
+    content: string | null;
+    date: string | null; // YYYY-MM-DD
+    categories: string[] | null;
+    tags: string[] | null;
+    status: "published" | "draft" | "publicado" | "rascunho";
+    coverImage: string | null;
+    videoUrl: string | null;
+  }>
+): Promise<AdminPost | null> {
+  const body: any = {};
+  if (payload.slug !== undefined) body.slug = payload.slug;
+  if (payload.title !== undefined) body.title = payload.title;
+  if (payload.excerpt !== undefined) {
+    body.excerpt = payload.excerpt;
+    body.summary = payload.excerpt;
   }
+  if (payload.content !== undefined) body.content = payload.content;
+  if (payload.date !== undefined) body.date = payload.date;
+  if (payload.categories !== undefined) body.categories = payload.categories;
+  if (payload.tags !== undefined) body.tags = payload.tags;
+  if (payload.status !== undefined)
+    body.status =
+      payload.status === "publicado"
+        ? "published"
+        : payload.status === "rascunho"
+        ? "draft"
+        : payload.status;
 
-  vals.push(id);
-  const { rows } = await pool.query(
-    `update public.posts
-       set ${set.join(", ")}, updated_at = now()
-     where id = $${vals.length}
-     returning id, slug, title, excerpt, content, date, categories, tags,
-               image_url, video_url, status, author, reading_minutes`,
-    vals
-  );
-  if (!rows[0]) throw new Error("Post não encontrado");
-  return rowToPost(rows[0]);
+  if (payload.coverImage !== undefined) {
+    body.cover_image = payload.coverImage;
+    body.cover_url = payload.coverImage;
+  }
+  if (payload.videoUrl !== undefined) body.video_url = payload.videoUrl;
+
+  type Row = {
+    id: string;
+    slug: string;
+    title: string;
+    excerpt: string | null;
+    summary: string | null;
+    content: string | null;
+    date: string | null;
+    categories: string[] | null;
+    tags: string[] | null;
+    status: string | null;
+    cover_image: string | null;
+    cover_url: string | null;
+  };
+
+  const rows = await restMutate<Row[]>("PATCH", "posts", { id: `eq.${id}` }, body);
+  const r = rows?.[0];
+  if (!r) return null;
+
+  return {
+    id: r.id,
+    slug: r.slug,
+    title: r.title,
+    excerpt: r.excerpt ?? r.summary ?? null,
+    content: r.content ?? null,
+    date: r.date ?? null,
+    categories: r.categories ?? [],
+    tags: r.tags ?? [],
+    status: normStatus(r.status),
+    coverImage: r.cover_image ?? r.cover_url ?? null,
+  };
 }
 
-export async function deletePost(id: string) {
-  await pool.query(`delete from public.posts where id = $1`, [id]);
-  return { ok: true };
-}
-
-// -------------- Alias compatibilidade --------------
-export async function addPost(
-  input: Omit<Post, "id" | "slug"> & { slug?: string }
-) {
-  return createPost(input);
+/* ------ APAGAR POR ID (BO) ------ */
+export async function deletePost(id: string): Promise<void> {
+  await restMutate<null>("DELETE", "posts", { id: `eq.${id}` });
 }

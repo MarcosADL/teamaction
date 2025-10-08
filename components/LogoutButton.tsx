@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase-browser'; // <- instância (sem ())
+import { supabase } from '@/lib/supabase-browser';
 
 export default function LogoutButton() {
   const router = useRouter();
@@ -12,17 +12,9 @@ export default function LogoutButton() {
   async function onClick() {
     setLoading(true);
     try {
-      // 1) apaga o cookie usado pelo middleware
-      await fetch('/api/create-session', {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      // 2) termina a sessão do Supabase no browser
       await supabase.auth.signOut();
-
-      // 3) volta à home (ou onde quiseres)
       router.replace('/');
+      router.refresh();
     } finally {
       setLoading(false);
     }

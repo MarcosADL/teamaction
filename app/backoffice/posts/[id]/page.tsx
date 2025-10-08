@@ -1,6 +1,7 @@
+// app/backoffice/posts/[id]/page.tsx
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getAllPosts, updatePost, type Post } from "@/lib/posts";
+import { getAllPosts, updatePost, type AdminPost } from "@/lib/posts";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/i;
 const IMG_RE = /\.(avif|jpe?g|png|webp|gif|svg)$/i;
@@ -8,11 +9,11 @@ const IMG_RE = /\.(avif|jpe?g|png|webp|gif|svg)$/i;
 export default async function EditPostPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
+  const { id } = params;
 
-  const all: Post[] = await getAllPosts();
+  const all: AdminPost[] = await getAllPosts();
   const post = all.find((p) => p.id === id);
   if (!post) return notFound();
 
@@ -40,7 +41,6 @@ export default async function EditPostPage({
       .map((s) => s.trim())
       .filter(Boolean);
 
-    // validação leve
     if (!title || !content) {
       throw new Error("Título e conteúdo são obrigatórios.");
     }
@@ -48,7 +48,7 @@ export default async function EditPostPage({
       throw new Error("Data inválida. Usa o formato YYYY-MM-DD.");
     }
     if (coverImage && !(IMG_RE.test(coverImage) || coverImage.startsWith("/"))) {
-      coverImage = undefined; // normaliza se inválida
+      coverImage = undefined;
     }
 
     const updated = await updatePost(id, {
@@ -65,8 +65,9 @@ export default async function EditPostPage({
     });
 
     revalidatePath("/blog");
-    revalidatePath(`/blog/${updated.slug}`);
-    redirect("/backoffice");
+    revalidatePath(`/blog/${updated?.slug}`);
+    revalidatePath("/backoffice/posts");
+    redirect("/backoffice/posts");
   }
 
   return (
@@ -76,32 +77,59 @@ export default async function EditPostPage({
       <form action={updatePostAction} className="space-y-4">
         <div>
           <label className="mb-1 block text-sm">Título</label>
-          <input name="title" defaultValue={post.title} className="w-full rounded-md border px-3 py-2" required />
+          <input
+            name="title"
+            defaultValue={post.title}
+            className="w-full rounded-md border px-3 py-2"
+            required
+          />
         </div>
 
         <div>
           <label className="mb-1 block text-sm">Slug (opcional)</label>
-          <input name="slug" defaultValue={post.slug} className="w-full rounded-md border px-3 py-2" />
+          <input
+            name="slug"
+            defaultValue={post.slug}
+            className="w-full rounded-md border px-3 py-2"
+          />
         </div>
 
         <div>
           <label className="mb-1 block text-sm">Resumo</label>
-          <textarea name="excerpt" defaultValue={post.excerpt ?? ""} className="h-20 w-full rounded-md border px-3 py-2" />
+          <textarea
+            name="excerpt"
+            defaultValue={post.excerpt ?? ""}
+            className="h-20 w-full rounded-md border px-3 py-2"
+          />
         </div>
 
         <div>
           <label className="mb-1 block text-sm">Conteúdo</label>
-          <textarea name="content" defaultValue={post.content} className="h-40 w-full rounded-md border px-3 py-2" required />
+          <textarea
+            name="content"
+            defaultValue={(post as any).content ?? ""}
+            className="h-40 w-full rounded-md border px-3 py-2"
+            required
+          />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm">Data (YYYY-MM-DD)</label>
-            <input name="date" defaultValue={post.date ?? ""} className="w-full rounded-md border px-3 py-2" pattern="\d{4}-\d{2}-\d{2}" />
+            <input
+              name="date"
+              defaultValue={post.date ?? ""}
+              className="w-full rounded-md border px-3 py-2"
+              pattern="\d{4}-\d{2}-\d{2}"
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm">Imagem de capa (URL)</label>
-            <input name="coverImage" defaultValue={post.coverImage ?? ""} className="w-full rounded-md border px-3 py-2" />
+            <input
+              name="coverImage"
+              defaultValue={post.coverImage ?? ""}
+              className="w-full rounded-md border px-3 py-2"
+            />
           </div>
         </div>
 
@@ -117,28 +145,47 @@ export default async function EditPostPage({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm">Categorias (separadas por ,)</label>
-            <input name="categories" defaultValue={(post.categories ?? []).join(", ")} className="w-full rounded-md border px-3 py-2" />
+            <label className="mb-1 block text-sm">
+              Categorias (separadas por ,)
+            </label>
+            <input
+              name="categories"
+              defaultValue={(post.categories ?? []).join(", ")}
+              className="w-full rounded-md border px-3 py-2"
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm">Tags (separadas por ,)</label>
-            <input name="tags" defaultValue={(post.tags ?? []).join(", ")} className="w-full rounded-md border px-3 py-2" />
+            <input
+              name="tags"
+              defaultValue={(post.tags ?? []).join(", ")}
+              className="w-full rounded-md border px-3 py-2"
+            />
           </div>
         </div>
 
         <div>
           <label className="mb-1 block text-sm">Estado</label>
-          <select name="status" defaultValue={post.status ?? "publicado"} className="rounded-md border px-2 py-2">
+          <select
+            name="status"
+            defaultValue={post.status ?? "publicado"}
+            className="rounded-md border px-2 py-2"
+          >
             <option value="publicado">Publicado</option>
             <option value="rascunho">Rascunho</option>
           </select>
         </div>
 
         <div className="flex items-center gap-3">
-          <button type="submit" className="rounded-md border px-4 py-2 hover:bg-muted/40">
+          <button
+            type="submit"
+            className="rounded-md border px-4 py-2 hover:bg-muted/40"
+          >
             Guardar alterações
           </button>
-          <a href="/backoffice" className="text-sm underline">Cancelar</a>
+          <a href="/backoffice/posts" className="text-sm underline">
+            Cancelar
+          </a>
         </div>
       </form>
     </main>

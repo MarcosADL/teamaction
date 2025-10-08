@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase-browser'; // <-- instância, não função
+import { supabase } from '@/lib/supabase-browser';
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [nextPath, setNextPath] = useState('/backoffice');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [nextPath, setNextPath] = useState('/backoffice');
-  const router = useRouter();
 
   useEffect(() => {
     try {
@@ -26,33 +27,15 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 1) Login no Supabase (instância)
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
         password: password.trim(),
       });
-      if (error) {
-        setMsg(`Supabase: ${error.message}`);
-        return;
-      }
-
-      // 2) Criar cookie para o middleware
-      const res = await fetch('/api/create-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ role: 'admin' }),
-      });
-
-      if (!res.ok) {
-        let errText = '';
-        try { errText = await res.text(); } catch {}
-        setMsg(`Cookie falhou: HTTP ${res.status} ${errText || ''}`.trim());
-        return;
-      }
+      if (error) throw new Error(error.message);
 
       setMsg('Ok, sessão iniciada!');
-      router.replace(nextPath);
+      router.replace(nextPath || '/');
+      router.refresh();
     } catch (err: any) {
       setMsg(`Erro: ${err?.message || String(err)}`);
     } finally {
@@ -68,8 +51,10 @@ export default function LoginPage() {
           className="border px-3 py-2 w-full"
           placeholder="Email"
           autoComplete="email"
+          type="email"
           value={email}
           onChange={e => setEmail(e.target.value)}
+          required
         />
         <input
           className="border px-3 py-2 w-full"
@@ -78,6 +63,7 @@ export default function LoginPage() {
           autoComplete="current-password"
           value={password}
           onChange={e => setPassword(e.target.value)}
+          required
         />
         <button disabled={loading} className="border px-4 py-2">
           {loading ? 'A entrar…' : 'Entrar'}
