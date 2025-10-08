@@ -1,6 +1,6 @@
 // app/backoffice/posts/page.tsx
 import Link from "next/link";
-import { getAllPosts } from "@/lib/posts";
+import { headers } from "next/headers";
 import Filters from "./Filters";
 
 export const runtime = "nodejs";
@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
+// continua a existir (é usada no <form action=.../>)
 export async function deletePostAction(id: string) {
   "use server";
   const { deletePost } = await import("@/lib/posts");
@@ -37,32 +38,59 @@ function parseStatusParam(raw: string): "all" | "published" | "draft" {
   return "all";
 }
 
-// qualquer coisa ≠ 'published' é tratado como draft
+// qualquer coisa ≠ 'published' é tratado como draft (compat com 'publicado')
 function normalizeStatus(s: unknown): "published" | "draft" {
-  return s === "published" ? "published" : "draft";
+  const v = String(s ?? "").toLowerCase();
+  return v === "published" || v === "publicado" ? "published" : "draft";
+}
+
+type AdminPost = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  date: string | null;
+  coverImage: string | null;
+  status: string; // published|draft (ou 'publicado' legado)
+};
+
+async function getAdminPosts(): Promise<AdminPost[]> {
+  // construir base URL robusta para produção/preview/local
+  const h = headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const base = `${proto}://${host}`;
+
+  const res = await fetch(`${base}/api/backoffice/posts`, { cache: "no-store" });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Falhou a listar posts: ${res.status} ${txt}`);
+  }
+  const data = (await res.json()) as { ok: boolean; items: AdminPost[] };
+  return data.items ?? [];
 }
 
 export default async function PostsAdminPage({ searchParams }: PageProps) {
-  // 👇 searchParams é assíncrono em rotas dinâmicas
   const sp = await searchParams;
 
   // filtros
   const q = take1(sp.q);
   const statusFilter = parseStatusParam(take1(sp.status));
 
-  // dados
-  const posts = await getAllPosts();
+  // dados (via API interna REST)
+  const posts = await getAdminPosts();
 
-  // ordenação por data desc
+  // ordenação por data desc (fallback null -> fim)
   const ordered = [...posts].sort((a, b) => {
-    const ad = a.date ? new Date(a.date).getTime() : 0;
-    const bd = b.date ? new Date(b.date).getTime() : 0;
+    const ad = a.date ? new Date(a.date).getTime() : -Infinity;
+    const bd = b.date ? new Date(b.date).getTime() : -Infinity;
     return bd - ad;
+    // se ambas null, mantém ordem
   });
 
   // filtro (estado + pesquisa)
   const filtered = ordered.filter((p) => {
-    const st = normalizeStatus((p as any).status);
+    const st = normalizeStatus(p.status);
 
     if (statusFilter === "published" && st !== "published") return false;
     if (statusFilter === "draft" && st !== "draft") return false;
@@ -73,10 +101,8 @@ export default async function PostsAdminPage({ searchParams }: PageProps) {
       [
         p.title,
         p.slug,
-        p.excerpt,
-        p.content,
-        p.tags?.join(" "),
-        p.categories?.join(" "),
+        p.excerpt ?? "",
+        // sem content aqui (não vem neste GET; é BO list)
       ]
         .filter(Boolean)
         .join(" ")
@@ -119,18 +145,17 @@ export default async function PostsAdminPage({ searchParams }: PageProps) {
 
       <ul className="space-y-2">
         {filtered.map((p) => {
-          const st = normalizeStatus((p as any).status);
+          const st = normalizeStatus(p.status);
           return (
             <li key={p.id} className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{p.title}</span>
               <StatusBadge status={st} />
               {p.date ? (
-                <span className="text-gray-500 text-sm">
-                  — {formatDate(p.date)}
-                </span>
+                <span className="text-gray-500 text-sm">— {formatDate(p.date)}</span>
               ) : null}
 
               <span className="ml-2 flex items-center gap-3">
+                {/* se já tiveres a página de edição */}
                 <Link href={`/backoffice/posts/${p.id}`} className="underline">
                   Editar
                 </Link>
@@ -149,9 +174,7 @@ export default async function PostsAdminPage({ searchParams }: PageProps) {
         })}
 
         {filtered.length === 0 && (
-          <li className="text-gray-500">
-            Sem resultados para os filtros aplicados.
-          </li>
+          <li className="text-gray-500">Sem resultados para os filtros aplicados.</li>
         )}
       </ul>
     </div>
