@@ -1,6 +1,9 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { getPostById, updatePost, deletePost } from "@/lib/posts";
+import { pool } from "@/lib/db";
 
 export async function GET(
   _req: Request,

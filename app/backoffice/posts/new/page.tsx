@@ -36,7 +36,10 @@ export default function NewPostPage() {
     if (!title.trim()) e.title = 'Obrigatório.';
     if (!content.trim()) e.content = 'Obrigatório.';
     if (date && !DATE_RE.test(date)) e.date = 'Formato: YYYY-MM-DD.';
-    if (coverImage && !(IMG_RE.test(coverImage) || coverImage.startsWith('/') || isHttpUrl(coverImage)))
+    if (
+      coverImage &&
+      !(IMG_RE.test(coverImage) || coverImage.startsWith('/') || isHttpUrl(coverImage))
+    )
       e.coverImage = 'URL de imagem (.png, .jpg, .webp, .svg…) ou caminho /local.';
     if (videoUrl && !isHttpUrl(videoUrl)) e.videoUrl = 'URL inválido.';
     return e;
@@ -57,26 +60,28 @@ export default function NewPostPage() {
     setLoading(true);
 
     try {
+      // ⚠️ estes nomes batem certo com lib/posts.ts → createPost()
       const payload = {
         title: title.trim(),
-        summary: excerpt.trim() || undefined,
+        excerpt: excerpt.trim() || undefined,
         content: content.trim(),
-        date: date || undefined,                 // YYYY-MM-DD
-        cover_url: coverImage || undefined,      // mapeado para image_url no servidor
-        video_url: videoUrl || undefined,
-        categories: toArray(categories),         // arrays
+        date: date || undefined,             // YYYY-MM-DD
+        coverImage: coverImage || undefined, // <= nome que o createPost usa
+        videoUrl: videoUrl || undefined,
+        categories: toArray(categories),
         tags: toArray(tags),
-        status: status === 'publicado' ? 'published' : 'draft',
+        status,                              // 'publicado' | 'rascunho'
       };
 
-      const res = await fetch('/api/posts', {
+      // ⚠️ rota do backoffice (JSON file storage), não a rota da BD
+      const res = await fetch('/api/backoffice/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.ok) {
+      if (!res.ok || json?.error) {
         throw new Error(json?.error || `Falhou a criação (${res.status})`);
       }
 
