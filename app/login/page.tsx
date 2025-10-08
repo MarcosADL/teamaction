@@ -1,44 +1,47 @@
+// app/login/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase-browser";
 
-function sanitizeNext(next: string | null | undefined) {
-  if (!next) return "/backoffice";
-  if (!next.startsWith("/") || next.startsWith("//")) return "/backoffice";
-  if (next === "/login") return "/backoffice";
-  return next;
+export const dynamic = "force-dynamic"; // evita pre-render
+
+function sanitizeNext(raw: string | null | undefined) {
+  if (!raw) return "/backoffice";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/backoffice";
+  if (raw === "/login") return "/backoffice";
+  return raw;
 }
 
 export default function LoginPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const nextPath = useMemo(
-    () => sanitizeNext(searchParams.get("next")),
-    [searchParams]
-  );
-
+  const [nextPath, setNextPath] = useState("/backoffice");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // ler ?next=... no cliente (sem useSearchParams)
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      setNextPath(sanitizeNext(sp.get("next")));
+    } catch {
+      setNextPath("/backoffice");
+    }
+  }, []);
+
+  // já tem sessão? salta logo
   useEffect(() => {
     let mounted = true;
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       if (data.session) {
-        router.replace(nextPath);
-        router.refresh();
+        window.location.assign(nextPath);
       }
     })();
-    return () => {
-      mounted = false;
-    };
-  }, [router, nextPath]);
+    return () => { mounted = false; };
+  }, [nextPath]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,12 +53,11 @@ export default function LoginPage() {
         password: password.trim(),
       });
       if (error) throw new Error(error.message);
-
       setMsg("Sessão iniciada!");
-      router.replace(nextPath);
-      router.refresh();
+      // força nova request (cookies válidos no SSR)
+      window.location.assign(nextPath);
     } catch (err: any) {
-      setMsg(`Erro: ${err?.message || "Falha ao autenticar."}`);
+      setMsg(`Erro: ${err?.message ?? "Falha ao autenticar."}`);
     } finally {
       setLoading(false);
     }
@@ -91,10 +93,7 @@ export default function LoginPage() {
           />
         </div>
 
-        <button
-          disabled={loading}
-          className="border rounded-xl px-4 py-2 w-full"
-        >
+        <button disabled={loading} className="border rounded-xl px-4 py-2 w-full">
           {loading ? "A entrar…" : "Entrar"}
         </button>
       </form>
