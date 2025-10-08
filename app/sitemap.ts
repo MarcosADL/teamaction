@@ -1,22 +1,50 @@
-import { MetadataRoute } from "next";
+// app/sitemap.xml/route.ts
+import { NextResponse } from "next/server";
 import { getPosts } from "@/lib/posts";
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = "https://example.com"; // <-- troca para o teu domínio
-  const items = await getPosts();
+// 👉 impede o Next de pré-renderizar isto no build
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-  const pages: MetadataRoute.Sitemap = [
-    { url: `${base}/`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.8 },
-    { url: `${base}/blog`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
-  ];
+function baseUrl() {
+  // usa o teu domínio; podes pôr em ENV também
+  return process.env.NEXT_PUBLIC_SITE_URL || "https://teamaction-pt.vercel.app";
+}
 
-  for (const p of items) {
-    pages.push({
-      url: `${base}/blog/${p.slug}`,
-      lastModified: p.date ? new Date(p.date) : new Date(),
-      changeFrequency: "weekly",
-      priority: 0.7,
+export async function GET() {
+  try {
+    const posts = await getPosts();
+    const base = baseUrl();
+
+    const urls =
+      posts
+        .map(
+          (p) =>
+            `<url><loc>${base}/blog/${p.slug}</loc><changefreq>weekly</changefreq></url>`
+        )
+        .join("") || "";
+
+    const xml =
+      `<?xml version="1.0" encoding="UTF-8"?>` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
+      `<url><loc>${base}</loc><changefreq>weekly</changefreq></url>` +
+      `${urls}` +
+      `</urlset>`;
+
+    return new NextResponse(xml, {
+      headers: { "Content-Type": "application/xml; charset=utf-8" },
+    });
+  } catch {
+    // fallback mínimo para não falhar build/runtime
+    const base = baseUrl();
+    const xml =
+      `<?xml version="1.0" encoding="UTF-8"?>` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
+      `<url><loc>${base}</loc></url>` +
+      `</urlset>`;
+    return new NextResponse(xml, {
+      headers: { "Content-Type": "application/xml; charset=utf-8" },
     });
   }
-  return pages;
 }
