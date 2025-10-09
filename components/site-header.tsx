@@ -1,51 +1,65 @@
-// components/site-header.tsx
+"use client";
+
 import Link from "next/link";
-import { getSession } from "@/lib/auth";
-import LogoutButton from "@/components/LogoutButton";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase-browser";
 
-export const revalidate = 0; // sempre atual
+type AppRole = "user" | "admin";
 
-function firstName(name?: string) {
-  if (!name) return "";
-  const f = String(name).trim().split(/\s+/)[0];
-  return f || "";
-}
+export default function SiteHeader() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<AppRole | null>(null);
 
-export default async function SiteHeader() {
-  const session = await getSession();
+  useEffect(() => {
+    let alive = true;
+
+    async function load() {
+      const { data } = await supabase.auth.getUser();
+      if (!alive) return;
+      const u = data.user ?? null;
+      setEmail(u?.email ?? null);
+      const r =
+        ((u?.app_metadata as any)?.role as AppRole | undefined) ??
+        ((u?.user_metadata as any)?.role as AppRole | undefined) ??
+        "user";
+      setRole(r);
+    }
+
+    load();
+    // opcional: reagir a mudanças de sessão
+    const { data: sub } = supabase.auth.onAuthStateChange(() => load());
+
+    return () => {
+      alive = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   return (
-    <header className="border-b">
-      <div className="mx-auto max-w-6xl items-center justify-between px-4 py-3 flex">
-        <Link href="/" className="text-lg font-semibold">
-          TeamAction
-        </Link>
+    <header className="border-b border-neutral-800">
+      <nav className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-6">
+        <Link href="/" className="text-green-400 font-semibold">TeamAction</Link>
+        <Link href="/blog" className="hover:underline">Blog</Link>
+        <Link href="/sobre" className="hover:underline">Sobre</Link>
 
-        <nav className="flex items-center gap-4">
-          <Link href="/blog" className="hover:underline">
-            Blog
-          </Link>
-
-          {session.role === "admin" && (
+        <div className="ml-auto flex items-center gap-3">
+          {role === "admin" && (
             <Link href="/backoffice" className="hover:underline">
               Backoffice
             </Link>
           )}
 
-          {!session.authenticated ? (
-            <Link href="/login" className="hover:underline">
-              Login
+          {email ? (
+            <Link href="/logout" className="bg-red-600 text-white px-3 py-1 rounded">
+              Sair
             </Link>
           ) : (
-            <div className="flex items-center gap-3">
-              <span className="text-sm opacity-80">
-                {firstName(session.email || undefined)}
-              </span>
-              <LogoutButton />
-            </div>
+            <Link href="/login" className="bg-green-500 text-black px-3 py-1 rounded">
+              Entrar
+            </Link>
           )}
-        </nav>
-      </div>
+        </div>
+      </nav>
     </header>
   );
 }
