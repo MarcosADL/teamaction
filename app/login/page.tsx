@@ -1,6 +1,4 @@
 // app/login/page.tsx
-import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
 import LoginForm from "./LoginForm";
 
 export const dynamic = "force-dynamic";
@@ -11,14 +9,14 @@ type SP = { next?: string };
 export default async function LoginPage({
   searchParams,
 }: { searchParams?: SP | Promise<SP> }) {
-  const sp = (await searchParams) || {};
-  const next = sanitizeNext(sp.next);
-
+  // searchParams pode ser Promise em prod
+  let sp: SP = {};
   try {
-    const s = await getSession();
-    if (s.authenticated) redirect(next);
+    sp = ((await searchParams) || {}) as SP;
   } catch {}
 
+  const next = sanitizeNext(sp.next);
+  // ⚠️ Sem getSession no server — deixa o client redirecionar se já estiver logado
   return <LoginForm nextPath={next} />;
 }
 
