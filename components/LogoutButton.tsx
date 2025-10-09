@@ -1,22 +1,19 @@
+// components/LogoutButton.tsx
 "use client";
-import { useState } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase-browser";
 
 export default function LogoutButton() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const [pending, start] = useTransition();
   return (
     <button
-      onClick={async () => {
-        setLoading(true);
-        try { await supabase.auth.signOut(); router.replace("/login"); router.refresh(); }
-        finally { setLoading(false); }
-      }}
-      disabled={loading}
-      className="border px-3 py-1.5 rounded-md text-sm"
+      disabled={pending}
+      onClick={() => start(async () => { await supabase.auth.signOut(); router.push("/login"); })}
+      className="bg-red-600 text-white px-3 py-1 rounded"
     >
-      {loading ? "A sair…" : "Sair"}
+      {pending ? "A sair…" : "Sair"}
     </button>
   );
 }
